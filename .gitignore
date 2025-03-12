@@ -1,4 +1,4 @@
 *.etl
 *.etli
-app
+kit-app/app
 .env
