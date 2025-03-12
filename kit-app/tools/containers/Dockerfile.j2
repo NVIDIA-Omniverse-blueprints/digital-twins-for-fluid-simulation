@@ -22,15 +22,15 @@ RUN mkdir -p /etc/sudoers.d/
 RUN echo "ubuntu ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/ubuntu
 
 # Copy the staged fat package into the /app directory
-COPY --chown=ubuntu:ubuntu package /app/
+COPY --chown=ubuntu:ubuntu --chmod=755 package /app/
 
 USER ubuntu
 WORKDIR /app
 
 # Copy the startup.sh scripts
-COPY --chown=ubuntu:ubuntu entrypoint.sh /entrypoint.sh
+COPY --chown=ubuntu:ubuntu --chmod=755 entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-COPY --chown=ubuntu:ubuntu entrypoint_memcached.sh /entrypoint_memcached.sh
+COPY --chown=ubuntu:ubuntu --chmod=755 entrypoint_memcached.sh /entrypoint_memcached.sh
 RUN chmod +x /entrypoint_memcached.sh
 
 # Create Kit expected caching directories that we'll map a volume onto.
