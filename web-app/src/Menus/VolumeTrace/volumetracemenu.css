@@ -1,0 +1,73 @@
+/* volumetracemenu.css */
+
+/* Main container */
+.slider-menu {
+  display: flex;
+  flex-direction: column; 
+  align-items: center;
+  height: 130px;
+  width: 100%;
+}
+
+
+.image-container {
+  position: relative;
+  width: 170px;
+  height: auto;
+  margin-bottom: 10px;
+  margin-right: 7px;
+  text-align: center;
+}
+
+/* The image itself */
+.image {
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+  object-fit: cover; 
+}
+
+
+/* Green dot */
+.green-dots {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 0%; /* Default position to start in the middle horizontally */
+  top: 0%; /* Default position to start in the middle vertically */
+}
+
+/* Green dots */
+.green-dot-1,
+.green-dot-2,
+.green-dot-3,
+.green-dot-4,
+.green-dot-5 {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #76b900;
+  border: 2px solid rgba(0, 0, 0, 0.415);
+  border-radius: 50%;
+}
+
+/* Sliders container */
+.sliders-container {
+  display: flex;
+  position: absolute;
+  flex-direction: column;
+  
+  width: 90%; 
+  margin-top: 112px; 
+}
+
+/* Individual slider */
+.slider {
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  height: 10px;
+}
+
+

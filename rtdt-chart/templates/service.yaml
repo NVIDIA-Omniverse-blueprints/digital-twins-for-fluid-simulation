@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rtdt
+spec:
+  type: ClusterIP
+  ports:
+    - name: kit-app-http
+      port: 8011
+      targetPort: 8011
+    - name: kit-app-creds
+      port: 49100
+      targetPort: 49100
+    - name: web
+      port: {{ .Values.web.service.port }}
+      targetPort: {{ .Values.web.service.targetPort }}
+    - name: aeronim
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: {{ .Release.Name }}-rtdt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-web
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.web.service.port }}
+    targetPort: {{ .Values.web.service.targetPort }}
+  selector:
+    app: {{ .Release.Name }}-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-aeronim
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: {{ .Release.Name }}-aeronim 

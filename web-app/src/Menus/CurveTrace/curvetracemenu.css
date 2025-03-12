@@ -1,0 +1,67 @@
+/* curvetracemenu.css */
+
+/* Main container */
+.slider-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  
+}
+
+.image-container {
+  position: relative;
+  text-align: center;
+  width: 100%;
+  height: auto;
+  margin-bottom: 10px;
+  margin-right: 7px;
+}
+
+
+.image {
+  align-content: center;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+  border: 1px solid #ccc; 
+  object-fit: cover; 
+}
+
+/* Green dot */
+.green-dot {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.177);
+  border: 2px solid #76b900;
+  border-radius: 50%;
+  transform: translate(-50%, -50%); 
+  cursor: pointer;
+  left: 10%; 
+  top: -10%; 
+}
+
+/* Buttons container */
+.buttons-container {
+  display: flex;
+  gap: 10px;
+  margin-top: -10px;
+}
+
+.buttons-container button {
+  font-size: 12px;
+  width: 40px;
+  height: 30px;
+  background-color: #121214;
+  border: 1px solid #121214;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.buttons-container button.active-btn {
+  background-color: #76b900;
+  color: white;
+}

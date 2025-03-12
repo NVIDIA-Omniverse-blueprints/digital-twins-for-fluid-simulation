@@ -1,0 +1,30 @@
+services:
+  aeronim:
+    image: "nvcr.io/nim/nvidia/domino-automotive-aero:1.0.0"
+    runtime: nvidia
+    environment:
+      CUDA_VISIBLE_DEVICES: "1"
+      NGC_API_KEY: "${NGC_API_KEY}"
+    network_mode: host
+    ipc: host
+    ports: 
+      - "8000:8000"
+  zmq:
+    image: "rtdt-zmq-service:latest"
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: service_network/Dockerfile
+    environment:
+      ZMQ_PORT: "5555"
+      NIM_TRITON_IP_ADDRESS: "localhost"
+      NIM_TRITON_HTTP_PORT: "8080"
+    network_mode: host
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+
+volumes:
+  ov-cache:
+  ov-local-share:

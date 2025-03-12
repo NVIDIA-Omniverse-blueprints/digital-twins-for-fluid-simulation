@@ -1,0 +1,46 @@
+/* View Menu CSS */
+
+.view-menu {
+color: white;
+font-family: "'NVIDIA_Sans-Bold',Helvetica";
+display: flex;
+flex-direction: row;
+}
+
+.view-images { 
+    display: flex;
+    flex-direction: column;
+    background-color: #2a2c30;
+    border: 5px solid #2a2c30;
+    border-radius: 6px;
+    margin-left: 0.5rem;
+    width: 180px;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+img {
+    width: 160px;
+    height: 80px;
+
+}
+
+
+.view-titles {
+    display: flex;
+    flex-direction: row;
+}
+
+
+.view-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: left;
+    color: white;
+}

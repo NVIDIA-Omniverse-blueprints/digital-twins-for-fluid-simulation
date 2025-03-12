@@ -1,0 +1,48 @@
+/* MainButton Css  */
+
+.main-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  position: relative;
+}
+
+.main-button .button {
+  align-items: center;
+  background-color: #2a2c30;
+  border: 4px solid;
+  border-color: #2a2c30;
+  border-radius: 8px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  width: 100px;
+  height:30px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+
+
+.button:hover {
+  border-color: #76b900;
+  color:#76b900;
+  transition: border-color 0.3s ease; 
+}
+
+.main-button .slice {
+  color: #ffffff;
+  font-family: var(--text-bold-xl-font-family);
+  font-size: 12px;
+  font-style: var(--text-bold-xl-font-style);
+  font-weight: var(--text-bold-xl-font-weight);
+  letter-spacing: var(--text-bold-xl-letter-spacing);
+  line-height: var(--text-bold-xl-line-height);
+  position: relative;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.main-button .slice:hover {
+  color:#76b900;
+}

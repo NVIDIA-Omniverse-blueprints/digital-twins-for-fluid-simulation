@@ -1,0 +1,17 @@
+[package]
+title = "omni.rtwt.api"
+version = "0.0.1"  # Semantic Versionning is used: https://semver.org/
+description = "API interface for omni.rtwt.app"
+readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI.
+repository = "https://github.com/NVIDIA-Omniverse/kit-extension-template"  # URL of the extension source repository.
+category = "Setup"  # One of categories for UI.
+keywords = ["kit", "app", "setup", "messaging"]  # Keywords for the extension
+icon = "data/icon.png"  # Icon to show in the extension manager
+preview_image = "data/preview.png"  # Preview to show in the extension manager
+reloadable = true
+
+
+[dependencies]
+
+[[python.module]]
+name = "omni.rtwt.api"

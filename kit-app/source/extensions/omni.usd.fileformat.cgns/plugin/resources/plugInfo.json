@@ -1,0 +1,27 @@
+{
+    "Plugins": [
+        {
+            "Info": {
+                "Types": {
+                    "UsdCgnsFileFormat": {
+                        "bases": [
+                            "SdfFileFormat"
+                        ],
+                        "displayName": "USD CGNS File Format",
+                        "extensions": [
+                            "cgns"
+                        ],
+                        "formatId": "cgns",
+                        "primary": true,
+                        "target": "usd"
+                    }
+                }
+            },
+            "LibraryPath": "./libUsdCgns.so",
+            "Name": "UsdCgns",
+            "ResourcePath": "resources",
+            "Root": "..",
+            "Type": "library"
+        }
+    ]
+}

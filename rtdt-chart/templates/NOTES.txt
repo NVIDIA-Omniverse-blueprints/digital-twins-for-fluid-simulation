@@ -1,0 +1,5 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+Visit http://127.0.0.1 to use your application

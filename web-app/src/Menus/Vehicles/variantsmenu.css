@@ -1,0 +1,58 @@
+.variants-menu {
+    display: flex;
+    grid-row: 3;
+    grid-column: 1;
+}
+
+.rims-menu,
+.toggles-menu,
+.ride-height-menu {
+width: 110px; 
+height: 100px; 
+background-color: #2a2c30; 
+border-radius: 6px; 
+padding: 10px; 
+color: #ccc; 
+}
+
+.rims {
+display: flex;
+flex-direction: row;
+}
+
+.rims-menu img {
+width: 50%; 
+height: 50%; 
+cursor: pointer; 
+margin-bottom: 10px; 
+
+}
+
+.rims-image.selected {
+border: 2px solid #76b900; 
+}
+
+.toggles-menu {
+display: flex;
+flex-direction: column; 
+justify-content: center; 
+gap: 10px;
+padding-left: 13px; 
+}
+
+.ride-height-menu {
+display: flex;
+flex-direction: column; 
+justify-content: space-between; 
+}
+
+.text {
+font-size: 12px;
+margin-left: 1px;
+margin-top: 4px;
+font-style: var(--text-bold-xl-font-style);
+}
+
+.rims-text {
+font-size: 12px;
+}

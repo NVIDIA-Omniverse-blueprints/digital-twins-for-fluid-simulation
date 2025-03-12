@@ -1,0 +1,24 @@
+.arronw-button {
+    background-color: #2a2c30;
+    border: 5px solid #2a2c30;
+    border-radius: 5px;
+    padding: 0;
+    width: 20px;
+    color: #E0E0E0;
+    font-size: 14px;
+    text-align: center;
+    line-height: 20px;
+    transition: border-color 0.3s ease;
+    border-width: 2px;
+    height: 28px; 
+}
+
+.arronw-button:hover {
+    color: #76b900;
+    border-color: #2a2c30;
+}
+
+.arronw-button:active {
+    color: #76b900;
+    border-color: #2a2c30;
+}

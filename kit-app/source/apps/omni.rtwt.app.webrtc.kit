@@ -1,0 +1,81 @@
+[package]
+title = "omni.rtwt.app.webrtc"
+version = "0.0.1"
+
+description = """The SC24 RTWT Omniverse App for local webrtc streaming"""
+
+# Extension Manager keyword for filtering.
+keywords = ["app"]
+
+[dependencies]
+# Create Kit UI Based applications
+"omni.rtwt.app" = {}
+
+# Streaming and messaging functionality
+"omni.kit.livestream.webrtc" = {}
+
+[settings]
+
+[settings.app]
+name = "omni.rtwt.app.webrtc"
+#livestream.logLevel = "debug"
+
+[settings.log]
+# Sets the relative path to where the log file for this application is stored.
+file = "app/out/kit.log"
+fileLogLevel = "verbose" # more verbose logging
+enableStandardStreamOutput = true
+outputStreamLevel = "verbose"
+#channels.carb.livestream-rtc.plugin = "verbose"
+
+[settings.app.window]
+title = "omni.rtwt.app.webrtc"
+
+[settings.exts."omni.appwindow"]
+listenF11 = false
+listenF7 = false
+
+[settings.app.livestream]
+skipCapture = 1  # livestream skipCapture ON for local streaming
+webrtcEtli = true  # Only log error or critical level issues.
+
+[settings.app.rendergraph]
+maxFramesInFlight = 2
+
+[settings.app.runloops]
+main.rateLimitEnabled = true  # Enable rate limiting on the main thread
+main.rateLimitFrequency = 60  # Lock it to 60fps
+main.rateLimitUsePrecisionSleep = true  # Use precise sleep values to ensure threads sync
+main.syncToPresent = true  # Sync with the present thread, smooths UI updates
+present.rateLimitEnabled = true  # Rate limit the present thread
+present.rateLimitFrequency = 60  # Lock it to 60fps
+present.rateLimitUsePrecisionSleep = true  # Use precise sleep values to ensure threads sync
+rendering_0.rateLimitEnabled = true  # Enable rate limiting for the rendering thread
+rendering_0.rateLimitFrequency = 60  # Lock it to 60fps
+rendering_0.rateLimitUsePrecisionSleep = true  # Use precise sleep values to ensure threads sync
+rendering_0.syncToPresent = true  # Sync with the present tread, smooths UI updates
+rendering_1.rateLimitEnabled = true  # Enable rate limiting for the rendering thread
+rendering_1.rateLimitFrequency = 60  # Lock it to 60fps
+rendering_1.rateLimitUsePrecisionSleep = true  # Use precise sleep values to ensure threads sync
+rendering_1.syncToPresent = true  # Sync with the present tread, smooths UI updates
+
+[settings.app.runLoopsGlobal]
+syncToPresent = true  # Sync everything with the present thread
+
+[settings.app.viewport]
+defaults.tickRate = 60  # Lock to 60fps[settings.app]
+
+[settings.exts."omni.kit.renderer.core"]
+present.enabled = true  # Enable the present thread
+present.presentAfterRendering = true  # Ensure the present thread waits for the rendering to complete[settings]
+
+[settings]
+rtx.verifyDriverVersion.enabled = false
+rtx-transient.dlssg.enabled = true# Disable DLSS otherwise it can push the framerate above the locked limit
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache"
+]

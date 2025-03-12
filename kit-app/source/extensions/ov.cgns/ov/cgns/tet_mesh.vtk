@@ -1,0 +1,13 @@
+# vtk DataFile Version 2.0
+Output mesh
+ASCII
+DATASET UNSTRUCTURED_GRID
+POINTS 5 float
+0.0 0.0 0.0
+1.0 0.0 0.0
+0.0 1.0 0.0
+0.0 0.0 1.0
+1.0 1.0 1.0
+CELLS 0 0
+
+CELL_TYPES 0

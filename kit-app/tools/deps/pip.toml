@@ -1,0 +1,48 @@
+########################################################################################################################
+# Example:
+########################################################################################################################
+
+#
+# [[dependency]]                           # Toml way to define array of objects.
+# python = "../_build/target-deps/python"  # Path to python used to install. Absolute or relative to this config.
+# packages = ["numpy"]                     # Array of packages to install, they all will be passed directly to pip.
+# target = "../_build/target-deps/numpy"   # Folder to install into.   Absolute or relative to this config.
+# platforms = ["windows-x86_64"]           # Platform(s) to filter, default is ["*"].
+# download_only = true                     # Do pip download instead of install, gets a whl file that can be installed later.
+
+# !!!
+# IMPORTANT: If you change this config cleanup target folder. Script check that it already exists and does nothing.
+
+
+# Options.
+# Various options are available that are passed through pip during the installation.
+
+# download_only: Only download the pip package, do not install it.
+# install_dependencies: When set to False, dependencies of a pip package will not be downloaded or installed
+# append_to_install_folder: When set to true and the target directory already exists, these packages will be appended to the existing folder.
+# build_isolated: Sets `--isolated` for pip install when installing. This means that environment variables and user settings will be ignored.
+# add_python_to_lib_path: Will set --global-options to include Python's lib and include folders when running the pip install.
+#    Useful when a python pip package has a C extension that needs to bind to Python. Setting this to true will set build_isolated to False.
+
+########################################################################################################################
+# Dependencies:
+########################################################################################################################
+
+# NOTE - For any new packages added to this list, please make sure that the license is compatible with Omniverse (i.e. avoid GPL/LGPL) and
+# that a SWIPAT bug report is filed for legal to validate if there is no existing ticket.
+# The SWIPAT template is here: http://nvbugs/2732212
+[[dependency]]
+python = "../../_build/target-deps/python"
+packages = [
+    "starlette==0.41.2",
+    "h5py==3.12.1",
+    "vtk==9.3.1",
+    "pyvtk==0.5.18",
+    "cupy-cuda12x==13.3.0",
+    "cuda-python==12.6.0"
+]
+target = "../../_build/target-deps/pip_prebundle" # This folder will be linked into 'example.mixed_ext' extension (see premake file)
+platforms = ["*"]
+download_only = false
+append_to_install_folder = true
+gather_licenses_path = "../../_build/PACKAGE-LICENSES/PIP-prebundled-LICENSES.txt"

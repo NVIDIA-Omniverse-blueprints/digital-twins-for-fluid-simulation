@@ -1,0 +1,7 @@
+_compiler
+_conan
+_deps
+_repo
+.vscode
+app
+ext/kit-cgns/source/extensions/service_network

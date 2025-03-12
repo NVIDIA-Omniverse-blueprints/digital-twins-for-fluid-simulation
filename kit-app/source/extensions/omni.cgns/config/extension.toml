@@ -1,0 +1,51 @@
+[package]
+version = "106.4.0-dev"     # shoould correspond to plugins/carb.cgns/VERSION.md
+title = "CGNS plugin wrapper"
+category = "Internal"
+description = "This lightweight extension loads carb.cgns and its dependencies"
+icon = "data/icon.png"
+keywords = ["carb", "cgns"]
+preview_image = "data/preview.png"
+readme = "docs/README.md"
+changelog = "docs/CHANGELOG.md"
+toggleable = false
+
+[dependencies]
+"omni.assets.plugins" = {}
+"omni.kit.pip_archive" = {}
+"omni.client" = {}
+"omni.flowusd" = {}
+
+[[python.module]]
+name = "omni.cgns"
+
+[[native.plugin]]
+path = "bin/deps/carb.cgns.plugin"
+
+[[native.plugin]]
+path = "bin/omni.cgns.plugin"
+
+[documentation]
+pages = [
+    "docs/Overview.md",
+    "docs/CHANGELOG.md",
+]
+
+[settings]
+# exts."omni.cgns".clip_aabb = [ -150.0, 55.0, -40.0, 550.0, 65.0, 180.0 ]
+exts."omni.cgns".cell_size = 1.625
+exts."omni.cgns".auto_cell_size = false
+exts."omni.cgns".max_blocks = 8192
+exts."omni.cgns".distance_ranges = [-10.0, 0.0]
+exts."omni.cgns".service_type = "zmq"
+exts."omni.cgns".zmq_protocol = "tcp"
+exts."omni.cgns".zmq_ip_address = "10.185.107.219"
+exts."omni.cgns".zmq_first_port = 5555
+exts."omni.cgns".zmq_port_interval = 10
+exts."omni.cgns".zmq_init_timeout_ms = 1000
+exts."omni.cgns".zmq_request_timeout_ms = 10000
+exts."omni.cgns".requests_queue_size = 1    # 1 means we process only 1 request config at time, 0 means, the latest is not sent
+exts."omni.cgns".services_count = 1    # only 1 service
+
+exts."omni.cgns".file_path_dump = ""
+exts."omni.cgns".array_pool_dump = false

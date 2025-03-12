@@ -1,0 +1,240 @@
+[package]
+title = "omni.rtwt"
+version = "0.0.1"
+
+description = """The SC24 RTWT Omniverse App"""
+
+# Extension Manager keyword for filtering.
+keywords = ["app"]
+
+[dependencies]
+# Create Kit UI Based applications
+"omni.kit.uiapp" = {}
+"omni.kit.renderer.core" = {}
+
+# Camera and Selection user input
+"omni.kit.window.file_importer" = {}
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+## Wind Tunnel Demo Extensions
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# This is your application setup Extensions
+# Where you layout the various Window, arrange you menu etc
+# order = 1000 make it run last
+"omni.rtwt.app.setup" = { order = 1000 }
+"omni.rtwt.api" = { order = 2000 }
+
+"omni.cgns" = {}
+"omni.usd.fileformat.cgns" = {}
+"ov.cgns" = {}
+"ov.cgns_ui" = {}
+"omni.flowusd" = {version = "106.4.13"}
+
+"omni.index.settings.core" = {}
+"omni.hydra.index" = {}
+"omni.index.compute" = {}
+"omni.index.renderer" = {}
+"omni.index.usd" = {}
+"omni.rtx.index_composite" = {}
+
+"omni.kit.window.section" = {}
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Viewport Extensions
+#############################################
+# The Main Viewport Window
+"omni.kit.viewport.window" = {}
+
+# Enable RTX Renderer for your viewport
+"omni.hydra.rtx" = {}
+
+# OG extensions to get Configurator action graph working
+"omni.graph.action" = {}
+"omni.graph.nodes" = {}
+"omni.graph.bundle.action" = {}
+"omni.graph.scriptnode" = {}
+"omni.kit.viewport.utility" = {}
+
+# Sequence
+"omni.kit.sequencer.core" = {}
+
+"omni.kit.primitive.mesh" = {}
+"omni.rtx.shadercache.vulkan" = {}
+
+# Windows only extensions. For all of them set exact=true to not be included into generated version lock.
+# That will break linux otherwise, as version lock is platform agnostic currently.
+[settings.app.extensions."filter:platform"."linux-x86_64"]
+excluded = ["omni.rtx.shadercache.d3d12"]
+
+[dependencies."filter:platform"."windows-x86_64"]
+"omni.rtx.shadercache.d3d12" = {}
+
+# Debugging
+##########################################
+# "omni.kit.window.stats" = { order = 1000 }
+
+[settings.persistent]
+# Viewport
+app.viewport.Viewport.Viewport0.guide.grid.visible = false
+app.viewport.Viewport.Viewport0.guide.axis.visible = false
+app.viewport.show.lights.visible = false
+app.viewport.grid.enabled = false
+metricsAssembler.showUnitsOverlay = false
+
+# OmniGraph settings
+omnigraph.useSchemaPrims = true
+omnigraph.disablePrimNodes = false
+
+# Render Preferences - Material Distilling ON
+rtx.mdltranslator.distillMaterial = true
+
+# Texture Streaming - false for local streaming
+rtx-transient.resourcemanager.enableTextureStreaming = false
+
+# Sequencer Camera Sync ON
+exts."omni.kit.window.sequencer".useSequencerCamera = true
+
+[settings.persistent.app.extensions]
+# More verbose logging
+# console.filterLevel = -2
+
+[settings.log]
+# Sets the relative path to where the log file for this application is stored.
+file = "app/out/kit.log"
+fileLogLevel = "info" # more verbose logging
+enableStandardStreamOutput = true
+outputStreamLevel = "info"
+
+[settings.app.window]
+title = "omni.rtwt.app"
+
+# Width and Height of your Main Window at startup
+width = 1920
+height = 1080
+x = -1
+y = -1
+
+[settings.persistent.app]
+# Remove default frame around viewport
+viewport.noPadding = true
+
+# this is a custom setting used in our app setup to choose the Layout
+[settings.app.layout]
+name = "default"
+
+[settings]
+# CGNS Settings
+exts."omni.cgns".zmq_ip_address = "localhost"
+exts."omni.cgns".zmq_first_port = 5555
+exts."omni.flowusd".voxelize_interop_enabled = true
+exts."omni.flowusd".voxelize_readback_enabled = false
+
+# Basic Kit App
+################################
+# this is used in our setup file to display some Version to the user in the title bar
+app.titleVersion = "0.0.1"
+
+# this will create a stage during the startup process
+# you don't have too, but be aware the the RTX engine only start
+# when there is something to render, so use if false you might want ore adjust the use of
+# omni.kit.viewport.ready
+
+# Ensure creation of an empty stage on application startup.
+app.content.emptyStageOnStart = true
+
+# enable quiting without confirmation
+app.file.ignoreUnsavedOnExit = true
+
+# deprecate support for old kit.ui.menu
+app.menu.legacy_mode = false
+
+# force new viewport name
+exts."omni.kit.viewport.window".startup.windowName = "Viewport"
+
+# Disable context menu, viewer not editor.
+exts."omni.kit.window.viewport".showContextMenu = false
+
+# enable rtx renderer
+renderer.enabled = "rtx"
+renderer.active = "rtx"
+renderer.multiGpu.maxGpuCount=1
+renderer.multiGpu.activeGpus="0"
+renderer.multiGpu.enabled=false
+rtx.realtime.mgpu.enabled=false
+# !!!!!!!!!!!!!!!!!!!1
+# NOTE: These three settings ensure that the RTX ready signal does not fire until our USD content, including material compilation, completes
+rtx.materialDb.syncLoads=true
+rtx.hydra.materialSyncLoads=true
+exts."omni.kit.plugin".syncUsdLoads=true
+# !!!!!!!!!!!!!!!!!!!1
+
+# Skip long full shutdown and exit quickly
+app.fastShutdown = true
+
+# Disable texture streaming for improved performance
+rtx-transient.resourcemanager.enableTextureStreaming = false
+
+# Force Script Nodes to be allowed without requiring end user consent. Be careful: do not load USD files with unknown contents.
+app."omni.graph.scriptnode".opt_in = true
+
+# TODO: comment
+app.viewport.createCameraModelRep = false
+
+# FSD Enabled by default
+app.useFabricSceneDelegate = false
+
+# livestream skipCapture ON for local streaming
+app.livestream.skipCapture = 1
+app.livestream.allowResize = 1
+
+app.auto_load_usd = "omniverse://content.ov.nvidia.com/Projects/Demos/rtdt/world_rtwt_Main_v1.usda"
+
+# Debugging
+##########################################
+persistent.app.viewport.displayOptions = 32255 # Bitmask that controls which performance counters appear in the HUD.
+
+[settings.app]
+name = "Omni Kit Starter"
+
+# Show/Hide the performance counters in the upper right corner of the viewport.
+viewport.forceHideFps = false
+
+# default to fill viewport
+viewport.defaults.fillViewport = true
+
+# set renderer resolution
+renderer.resolution.width = 1920
+renderer.resolution.height = 1080
+
+usdrt.scene_delegate.enableProxyCubes = false
+# Disabling FSD geometry streaming
+usdrt.scene_delegate.geometryStreaming.enabled = false
+usdrt.scene_delegate.numFramesBetweenLoadBatches = 1
+usdrt.scene_delegate.geometryStreaming.numberOfVerticesToLoadPerChunk = 800000
+usdrt.scene_delegate.timeSampledDataStatic = true
+
+# TODO: 0: Display everything
+# 0.0005: Display all geometry down to around the size of a pixel
+# 0.001: Display all geometry bigger than a few pixels
+usdrt.scene_delegate.geometryStreaming.solidAngleLimit = 0
+
+# When populating Fabric from USD, merge meshes under scene
+# graph instances. Helps with e.g. Tesla
+# Needs to be tested more before enabling for Runway
+usdrt.population.utils.mergeInstances = false
+
+# Fonts
+# You can change the font files here and also adjust its size
+# Although most ui have dynamic layout your milage may vary.
+# there might be few issue are too low or too high sizes
+[settings.app.font]
+file = "${fonts}/OpenSans-SemiBold.ttf"
+size = 16
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache"
+]

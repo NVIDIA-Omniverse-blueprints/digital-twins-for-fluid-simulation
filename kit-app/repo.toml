@@ -1,0 +1,126 @@
+########################################################################################################################
+# Repo tool base settings
+########################################################################################################################
+
+[repo]
+
+# Use the Kit Template repo configuration as a base. Only override things specific to the repo.
+import_configs = [
+    "${root}/_repo/deps/repo_kit_tools/kit-template/repo.toml",
+    "${root}/_repo/deps/repo_kit_tools/kit-template/repo-external-app.toml",
+]
+
+# Repository Name
+name = "rtwt"
+
+# Disable linbuild until we know what we want to do with this.
+[repo_build.docker]
+enabled = false
+
+[repo_build.fetch.pip]
+# List of pip files to pip install from (in order)
+files_to_pull = [
+    "${root}/tools/deps/pip.toml"
+]
+
+# Do not gather Python dependency licenses
+licensing_enabled = false
+
+# Do not try to publish a pip cache to S3
+publish_pip_cache = false
+
+########################################################################################################################
+# Extensions precacher
+########################################################################################################################
+
+[repo_precache_exts]
+# Apps to run and precache
+apps = [
+    "${root}/source/apps/omni.rtwt.app.kit",
+    "${root}/source/apps/omni.rtwt.app.webrtc.kit",
+    "${root}/source/apps/omni.rtwt.editor.kit",
+]
+
+########################################################################################################################
+# Packaging
+########################################################################################################################
+
+[repo_package.packages.fat_package]
+root = "_build/$${platform}/$${config}"
+archive_name = "${conf:repo.name}-fat"
+# omniverse_flow_version_scheme sets package name to the format:
+# archive_name@{build_version}+{gitbranch}.{builder_id}.{githash}.{build_environment}.{host_platform}.{archive_format}
+# e.g. kit-app-template-thin@2024.1.0+custom-app-stuff.0.12345678.local.linux-x86_64.zip
+omniverse_flow_version_scheme=true
+package_per_config = true                   # By default we only build + package release.
+append_config = true                        # Set to true to append release/debug config to package name.
+archive_format = "zip"                      # We support "7z", "zip", "tar.gz", "tar.bz2"
+#build_version = "${file:${config_root}/tools/VERSION.md}"  # It's ignored when omniverse_flow_version_scheme is true
+
+
+files = [
+    ["**"],
+]
+files_exclude = [
+    ["_*/**"],
+    [".*/**"],
+    ["**/*.pdb"],
+    ["**/*.exp"],
+    ["baseapp/**"],
+    ["extsbuild/**"],
+    ["cache/**"],
+    ["data/**"],
+    ["logs/**"],
+    ["apps/kit.portable"],
+    ["**/__pycache__"],
+]
+"linux-x86_64".files_strip = []
+
+
+[repo_package.packages.thin_package]
+root = "_build/$${platform}/$${config}"
+archive_name = "${conf:repo.name}-thin"
+omniverse_flow_version_scheme=true
+package_per_config = true
+append_config = true
+archive_format = "zip"
+#build_version = "${file:${config_root}/tools/VERSION.md}"
+
+files = [
+    ["**"],
+]
+files_exclude = [
+    ["_*/**"],
+    [".*/**"],
+    ["**/*.pdb"],
+    ["**/*.exp"],
+    ["kit/**"],
+    ["extscache/**"],
+    ["extsbuild/**"],
+    ["baseapp/**"],
+    ["cache/**"],
+    ["data/**"],
+    ["logs/**"],
+    ["apps/kit.portable"],
+    ["**/__pycache__"],
+]
+"linux-x86_64".files_strip = []
+
+
+########################################################################################################################
+# Template tool configuration
+########################################################################################################################
+[repo_kit_template]
+extension_templates_config = "templates/templates.toml"
+
+
+########################################################################################################################
+# Application launching configuration
+########################################################################################################################
+[repo_launch]
+type_ordering = [
+    "ApplicationTemplate",
+    "ApplicationLayerTemplate",
+]
+
+

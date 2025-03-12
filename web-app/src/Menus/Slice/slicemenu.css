@@ -1,0 +1,102 @@
+/* Main container */
+.main-menu {
+display: flex;
+flex-direction: column;
+padding: 10px 10px 5px 10px;
+gap: 20px;
+}
+
+
+.top-section {
+display: flex;
+align-items: center;
+gap: 10px;
+margin-top: -10px;
+}
+
+.section-buttons {
+display: flex;
+margin: 1px;
+flex-direction: column;
+}
+
+.section-buttons button {
+font-size: 12px;
+width: 40px;
+height: 30px;
+background-color: #121214;
+border: 1px solid #121214;
+color: white;
+border-radius: 4px;
+cursor: pointer;
+transition: background-color 0.2s ease;
+}
+
+.section-buttons button.active-btn {
+background-color: #76b900;
+color: white;
+}
+
+/* Image section (front view and side view) side by side */
+.image-section {
+display: flex;
+gap: 20px;
+align-items: center;
+}
+
+/* Image container */
+.image-container {
+position: relative;
+width: 180px;
+height: 100px;
+left: 5px;
+top: 5px;
+}
+
+/* Image styles */
+.image-container img {
+width: 160px;
+height: 100px;
+border: 2px solid transparent;
+user-select: none;
+pointer-events: none;
+}
+
+.side-image-container img {
+width: 240px;
+height: 100px;
+border: 2px solid transparent;
+user-select: none;
+pointer-events: none;
+}
+
+.highlight {
+border-color: #76b900;
+opacity: 1;
+}
+
+.dimmed {
+opacity: 0.5;
+}
+
+/* Vertical bar */
+.vertical-bar {
+position: absolute;
+top: 0;
+width: 6px;
+height: 100%;
+background-color: #76b900;
+border: 1px solid #2a2c30;
+cursor: pointer;
+}
+
+/* Horizontal bar */
+.horizontal-bar {
+position: absolute;
+left: 0;
+width: 50%;
+height: 6px;
+background-color: #76b900;
+border: 1px solid #2a2c30;
+cursor: pointer;
+}

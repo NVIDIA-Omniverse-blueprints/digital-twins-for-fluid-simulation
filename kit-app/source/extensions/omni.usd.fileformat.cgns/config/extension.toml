@@ -1,0 +1,46 @@
+[package]
+authors = []
+category = "USD"
+changelog="docs/CHANGELOG.md"
+description="CGNS fileformat"
+icon = "data/icon.png"
+keywords = ["cgns", "usd", "fileformat"]
+preview_image = "data/preview.png"
+readme  = "docs/README.md"
+title = "CGNS file format loader plugin"
+version = "106.1.0"
+toggleable = false
+
+[documentation]
+pages = [
+    "docs/CHANGELOG.md",
+]
+
+[package.writeTarget]
+# The extension will only run with the same kit-sdk version it was built with
+kit = true
+usd = true
+
+[core]
+reloadable = false
+# Load at the start, load all schemas with order -100 (with order -1000 the USD libs are loaded)
+order = -100
+
+[dependencies]
+"omni.usd" = {}
+
+# [settings]
+
+#We can't use omni.usd as a namespace, so strip out the omni.. this conforms with what physics do
+[[python.module]]
+name = "usd.fileformat.cgns"
+
+#Adding this without a path or other attributes seems to be enough to cause the extension to be
+#decorated with the appropriate windows/linux magic e.g 'omni.usd.fileformat.e57-0.1.0+lx64.r.cp37'
+#When publish to extension registry
+[[native.plugin]]
+path = "bin/deps/carb.cgns.plugin"
+
+[[test]]
+dependencies = [
+]

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-rtdt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-rtdt
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-rtdt
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: {{ .Values.zmq.hostIPC }}
+      imagePullSecrets:
+      - name: ngc-registry-secret
+      containers:
+      - name: kit
+        image: "{{ .Values.kit.image.repository }}:{{ .Values.kit.image.tag }}"
+        imagePullPolicy: {{ .Values.kit.image.pullPolicy }}
+        env:
+        {{- range $key, $value := .Values.kit.environment }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        ports:
+        - containerPort: 49100
+          protocol: TCP
+        - containerPort: 8011
+          protocol: TCP
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: ov-cache
+          mountPath: /home/ubuntu/.cache/ov
+        - name: ov-local-share
+          mountPath: /home/ubuntu/.local/share/ov/
+
+      - name: web
+        image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+        imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+        ports:
+        - containerPort: 80
+
+      - name: aeronim
+        image: "{{ .Values.aeronim.image.repository }}:{{ .Values.aeronim.image.tag }}"
+        imagePullPolicy: {{ .Values.aeronim.image.pullPolicy }}
+        env:
+        {{- range $key, $value := .Values.aeronim.environment }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
+
+      - name: zmq
+        image: "{{ .Values.zmq.image.repository }}:{{ .Values.zmq.image.tag }}"
+        imagePullPolicy: {{ .Values.zmq.image.pullPolicy }}
+        env:
+        {{- range $key, $value := .Values.zmq.environment }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+
+      volumes:
+      - name: ov-cache
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-ov-cache
+      - name: ov-local-share
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-ov-local-share

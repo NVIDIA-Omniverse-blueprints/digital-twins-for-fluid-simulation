@@ -1,0 +1,163 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+title = "Omni Kit Starter"
+version = "2024.06.01"
+keywords = [
+	"app"
+]
+
+
+[dependencies]
+# Items listed in this section are dependencies that this OV application requires.
+# This is the main USD Explorer kit file. All of the settings and dependencies in there are also dependencies
+# for this cloud based version of the application.
+"omni.rtwt.app" = {}
+
+# This extension controls what occurs when a scene is loaded on a streaming instances of USD Explorer
+"omni.kit.livestream.webrtc" = {}
+"omni.activity.profiler" = {} # For showing RTX loading progress
+"omni.activity.pump" = {} # For shouwing RTX loading progress
+"omni.hydra.engine.stats" = {}  # Load the stats HUD (resolution, fps, etc..)
+"omni.hydra.rtx" = {}  # Viewport renderer
+"omni.graph.window.action" = {}
+"omni.graph.window.generic" = {}
+"omni.kit.mainwindow" = {}  # Main uiapp
+"omni.kit.manipulator.camera" = {}  # Load the camera-manipulator (navigation)
+"omni.kit.manipulator.prim" = {}  # Load the prim-manipulator (translate, rotate, scale)
+"omni.kit.manipulator.selection" = {}  # Load the selection-manipulator (selecteable prims)
+"omni.kit.material.library" = {} # Create and assign materials.
+"omni.kit.menu.create" = {} # Create menu
+"omni.kit.menu.edit" = {}  # Edit menu
+"omni.kit.menu.file" = {}  # File menu
+"omni.kit.property.bundle" = {} # all the property editors
+"omni.kit.raycast.query" = {} # RTX Raycast Query
+"omni.kit.stage_template.core" = {}  # For creating new empty stages
+"omni.kit.telemetry" = {} # Telemetry
+"omni.kit.tool.collect" = {} # USD Collect tool
+"omni.kit.viewport.legacy_gizmos" = {}  # Load the legacy grid and gizmo drawing for now
+"omni.kit.viewport.menubar.camera" = {}  # Load the view-from-camera menu
+"omni.kit.viewport.menubar.display" = {}  # Load the display type menu
+"omni.kit.viewport.menubar.lighting" = {}  # Load the viewport settings menu
+"omni.kit.viewport.menubar.render" = {}  # Load the renderer selection menu
+"omni.kit.viewport.menubar.settings" = {}  # Load the viewport settings menu
+
+
+"omni.kit.window.console" = {}  # Console/log
+"omni.kit.window.content_browser" = {} # Add content browser to UI
+"omni.kit.window.extensions" = {}
+"omni.kit.window.property" = {} # Property editor window
+"omni.kit.window.script_editor" = {}
+"omni.kit.window.stage" = {}  # Stage tree
+"omni.kit.window.status_bar" = {}  # Status Bar
+"omni.kit.window.toolbar" = {}  # Manipular Toolbar
+"omni.rtx.settings.core" = {} # RTX Settings
+
+"omni.kit.usd.layers" = {}
+"omni.kit.widget.layers" = {}
+
+
+[settings.app]
+livestream.enabled = true
+
+# Allows the client application to determine streaming resolution.
+livestream.allowResize = true
+
+livestream.webrtcEtli = true
+
+# Only log error or critical level issues.
+livestream.logLevel = "error"
+
+livestream.proto = "ws"
+
+# Scale the application window to match the size & aspect ratio of the monitor.
+window.scaleToMonitor = true
+
+# Informs certain extensions that they are running on a cloud deployment of the application.
+ovc_deployment = true
+
+
+# this is a custom setting used in our app setup to choose the Layout
+[settings.app.layout]
+name = "none"
+
+[settings.persistent.app.extensions]
+# More verbose logging
+# console.filterLevel = -2
+
+
+[settings.app.exts]
+# This list is a collection of relative paths from application to folders where
+# extensions and dependencies are located.
+folders.'++' = ["${app}/../exts", "${app}/../apps", "${app}/../extscache"]
+
+
+[settings.app.extensions]
+fsWatcherEnabled = true
+
+# Skip checking supported platform/config when building
+supportedTargets.platform = []
+
+
+"omni.kit.viewport.navigation.camera_manipulator".defaultOperation = "orbit" # Orbit ON by default
+"omni.kit.window.cursor".disabled = true # disable omni.kit.window.cursor
+"omni.ui".Window.enableDetach = false
+"omni.activity.ui".auto_save_location = "app/out"
+
+# Ensures that interactions with the application's menus are logged.
+"omni.kit.menu.utils".logDeprecated = false
+
+"omni.kit.window.content_browser".show_download_menuitem = false
+
+# Do not allow connections to new servers when running on OVC.
+"omni.kit.window.filepicker".show_add_new_connection = false
+
+# Do not display the buttons to open log files when running on OVC
+"omni.kit.window.console".showOpenLogButtons = false
+
+# Disable custom cursors.
+"omni.kit.window.cusor".disabled = true
+
+# Do not show the local filesystem in the content browser
+"omni.kit.window.content_browser".show_only_collections = ["bookmarks", "omniverse", "",]
+
+# Do not show the local file system in the filepicker.
+"omni.kit.window.filepicker".show_only_collections = ["bookmarks", "omniverse", "",]
+
+"omni.ui.window".enableDetach = false
+
+[settings.log]
+# Sets the relative path to where the log file for this application is stored.
+file = "app/out/kit.log"
+fileLogLevel = "error" # more verbose logging
+enableStandardStreamOutput = true
+outputStreamLevel = "info"
+
+
+[settings]
+# Do not check if the GPU drivers are verified
+rtx.verifyDriverVersion.enabled = false
+rtx.post.aa.op = 3
+rtx.post.dlss.execMode = 1  # DLSS mode: balanced
+
+# Disable the realm.timeout.
+realm.timeout = 0
+privacy.userId = "${USER_ID}"
+rendergraph.maxFramesInFlight = 2 # Reduce click-to-photon
+renderer.debug.aftermath.enabled = true
+plugins."carb.tasking.plugin".threadCount = 16
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache"
+]

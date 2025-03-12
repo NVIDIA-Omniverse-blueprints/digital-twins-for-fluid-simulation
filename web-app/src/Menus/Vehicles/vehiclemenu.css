@@ -1,0 +1,46 @@
+/* Vehicle Menu CSS */
+
+.vehicle-menu {
+    color: white;
+    font-family: "'NVIDIA_Sans-Bold',Helvetica";
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    gap: 2px;
+    }
+    
+    .vehicle-images img {
+        width: 180px;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        background-color: #2a2c30;
+    }
+    
+    img {
+        width: 10px;
+        height: 20px;
+    
+    }
+    
+
+    
+    label {
+        justify-content: left;
+        font-size: 12px;
+        padding-top: 0.1rem;
+        padding-left: 0.1rem;
+    }
+    
+    .vehicle-button {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: left;
+        color: white;
+    }
+
