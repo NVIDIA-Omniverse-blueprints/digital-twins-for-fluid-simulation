@@ -1,7 +1,7 @@
 FROM node:18-alpine as build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 COPY index.html  public/  src/  tsconfig.json  tsconfig.node.json  vite.config.ts .
 RUN npm run build
 
