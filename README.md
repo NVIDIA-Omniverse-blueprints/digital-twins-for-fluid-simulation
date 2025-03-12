@@ -137,7 +137,7 @@ Copy the `.env_template` file to .env and customize, if necessary:
 cp .env_template .env
 ```
 
-Start the docker containers:
+If you have not previously logged in to the NGC docker registry (nvcr.io), follow the instructions at https://org.ngc.nvidia.com/setup/api-keys. Start the docker containers:
 
 ```
 docker compose up -d
@@ -299,6 +299,29 @@ This blueprint is licensed under Omniverse License Agreement found [here](/LICEN
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
 
 ## Troubleshooting
+
+### Aeronim fails to start
+
+You may encounter the following error message when attempting the `docker compose up -d` step. It indicates that you need to perform a Docker login as described at https://org.ngc.nvidia.com/setup/api-keys.
+
+```
+[+] Running 1/1
+ ✘ aeronim Error unauthorized: <html>                                                                                                                                                                        0.2s
+<head><title>401 Authorization Required</title></head>
+<body>
+<center><h1>401 Authorization Required</h1></center>
+<hr><center>nginx/1.22.1</cen...                0.3s
+Error response from daemon: unauthorized: <html>
+<head><title>401 Authorization Required</title></head>
+<body>
+<center><h1>401 Authorization Required</h1></center>
+<hr><center>nginx/1.22.1</center>
+</body>
+</html>
+```
+
+### General Debugging
+
 You may need to check logs for trouble shooting. Do the following to do so:
 
 ##### Tail logs live
