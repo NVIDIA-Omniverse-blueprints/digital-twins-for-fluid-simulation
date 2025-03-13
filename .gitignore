@@ -1,4 +1,5 @@
 *.etl
 *.etli
 kit-app/app
+web-app/app
 .env
