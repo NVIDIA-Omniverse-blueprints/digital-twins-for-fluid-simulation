@@ -4,7 +4,6 @@
 
 The Omniverse Blueprint for Real-time Computer-aided Engineering Digital Twins offers a reference workflow for building real-time digital twins for external aerodynamic Computational Fluid Dynamics (CFD) workflows combining CUDA-X accelerated solvers, PhysicsNeMo for physics AI, and Omniverse for high quality rendering. 
 
-
 This blueprint offers a comprehensive reference workflow for building real-time digital twins, specifically tailored for external aerodynamic CFD simulations. This workflow leverages CUDA-X accelerated solvers for high-performance computing, PhysicsNeMo for advanced simulation AI, and Omniverse for high-quality, real-time rendering. 
 
 The digital twin tool is available to test either through build.nvidia.com or by deploying it yourself using this set of instructions. The build.nvidia.com version is deployed as a live, interactive blueprint on build.nvidia.com, where you can work through a prebuild environment, selecting different configurations and seeing the outputs from a real-time inference against a pre-trained machine learning (ML) model through Omniverse. If you want to deploy this blueprint locally and/or customize it for your own needs you can follow these set of instructions. The installation and management of the blueprint software and hardware infrastructure are intended for on-premis deployment. 
@@ -43,13 +42,13 @@ Setting up the digital twin requires a technical team with expertise in differen
 - Evaluation 
 
 ### Prerequisites
+
 #### Minimum System Requirements
 **Hardware**
-- 2 NVIDIA L40s GPUs
+- At least 2x RTX (TM) GPUs with at least 40GB of memory each, e.g., 2xL40S or 2xA6000
 - 128 GB RAM
 - 32 CPU Cores
 - 100 GB Storage
-
 
 **OS requirements**
 - Linux - Ubuntu 22.04 or 24.04
@@ -62,7 +61,6 @@ Setting up the digital twin requires a technical team with expertise in differen
 - NVIDIA Container Toolkit: For GPU-accelerated containerized development and deployment. Installation and configuring docker steps are required.
 - build-essentials: A package that includes make and other essential tools for building applications. For Ubuntu, install with ``sudo apt-get install build-essential``
 
-### Configuration
 #### NVIDIA Container Toolkit
 The NVIDIA Container Toolkit is a set of tools and libraries that enable GPU-accelerated applications to run in containers. It provides the necessary components and configurations to access NVIDIA GPUs within containerized environments, such as Docker or Kubernetes. This toolkit allows developers to leverage the computational power of NVIDIA GPUs for applications in AI, machine learning, data analytics, and high-performance computing, while benefiting from the portability and isolation provided by containers.
 
@@ -71,84 +69,159 @@ The NVIDIA Container Toolkit is a set of tools and libraries that enable GPU-acc
 Ensure you configure the toolkit after installing. 
 
 #### NVIDIA GPU Cloud (NGC) Access
-Follow the steps to authenticate and generate an API Key to NGC on docker (this is needed to check out the Aero NIM).
+Follow the steps to authenticate and generate an API Key to NGC on Docker.  This is needed to check out the NIM.
 
 [Docker with NGC](https://docs.nvidia.com/launchpad/ai/base-command-coe/latest/bc-coe-docker-basics-step-02.html)
 
 Once you have the NGC API Key, you can export it to your environment. 
 
-```
+```bash
 export NGC_API_KEY=<ngc-api-key>
 ```
 
-By default, the environment variable will only be available in the current shell session.
+By default, the environment variable will only be available in the current shell session. Run one of the following commands to make the key available at startup:
 
-Run one of the following commands to make the key available at startup:
-
-##### If using bash
-```
+**If using bash**
+```sh
 echo "export NGC_API_KEY=<ngc-api-key>" >> ~/.bashrc
 ```
 
-##### If using zsh
-```
+**If using zsh**
+```sh
 echo "export NGC_API_KEY=<ngc-api-key>" >> ~/.zshrc
 ```
 
 Then source or restart your shell.
 
-The Aero NIM performs a runtime check for the NGC API key to ensure it is valid. Therefore, make sure to add the NGC API Key as an environment variable to allow the application to run smoothly.
+The NIM performs a runtime check for the NGC API key to ensure it is valid. Therefore, make sure to add the NGC API Key as an environment variable to allow the application to run smoothly.
 
 Login to the NGC in order to download the necessary containers following the steps here:
 
 [Docker NGC](https://docs.nvidia.com/launchpad/ai/base-command-coe/latest/bc-coe-docker-basics-step-01.html#installing-docker-locally)
 
-#### Download the blueprint repo 
-The kit-app repository enables developers to create cross-platform applications optimized for desktop use and cloud streaming. 
+### Configuration
 
+#### Build the Blueprint
 Clone the repository using the following command:
 
-```
+```sh
 git clone ssh://github.com/NVIDIA-Omniverse-Blueprints/digital-twins-for-fluid-simulation $HOME/digital_twins_for_fluid_simulation
 ```
 
 Change to the resulting directory:
 
-```
+```sh
 cd $HOME/digital_twins_for_fluid_simulation
 ```
 
 Run the below to build the docker containers:
 
-```
+```sh
 ./build-docker.sh
 ```
 
-## Running the Demo
-Run the below docker compose command to run the demo. If running on the local host, you can open 0.0.0.0:5273 in your local browser to view.
+Copy the `.env_template` file to `.env`:
 
-```
-cd $HOME/digital_twins_for_fluid_simulation
-```
-
-Copy the `.env_template` file to .env and customize, if necessary:
-
-```
+```sh
 cp .env_template .env
 ```
 
-If you have not previously logged in to the NGC docker registry (nvcr.io), follow the instructions at https://org.ngc.nvidia.com/setup/api-keys. Start the docker containers:
+#### Open Required Ports
 
+This blueprint uses [Omniverse Kit App Streaming](https://docs.omniverse.nvidia.com/ovas/latest/index.html) and the `@nvidia/omniverse-webrtc-streaming-library` client library to stream the simulation to the client application. The following ports must be open to the client system, i.e. the system running the web browser displaying the wind tunnel:
+
+- web: `5273/tcp, 1024/udp`
+- kit: `8011/tcp, 8111/tcp, 47995-48012/tcp, 47995-48012/udp, 49000-49007/tcp, 49100/tcp, 49000-49007/udp`
+- other: `1024/udp`
+
+
+#### Configuration for Clouds and VPNs
+Cloud-hosted systems (e.g. AWS EC2 instances) and systems on a VPN may have a public IP address that is different from the system's private IP address.  If the system is configured with both a public and a private IP address, follow the instructions below.
+
+Get the IP address of the primary route.  This is the private IP address.
+```sh
+ip route get 1 | sed 's/^.*src \([^ ]*\).*$/\1/;q'
 ```
+
+Use an IP address service to check the public IP address.
+```sh
+curl ipinfo.io/ip
+```
+
+If the public IP address matches the private IP address then no changes are needed.  Skip ahead to [Running the Blueprint](#running-the-blueprint).
+If the public IP address is different from the private IP address, proceed with the changes described below.
+
+Edit `.env` and set `ZMQ_IP` to your _private_ IP address.  For example:
+
+```sh
+# Example Only! Your private IP address may be different.
+ZMQ_IP=172.31.1.144  
+```
+
+Edit `compose.yml`.  In the `kit` service definition, replace the `network_mode: host` directive with the network definition shown below.  Replace `YOUR_PUBLIC_IP_ADDRESS` with your public IP address.
+```yaml
+networks:
+  outside:
+    ipv4_address: YOUR_PUBLIC_IP_ADDRESS
+```
+
+The start of `compose.yml` will look similar to this:
+```yaml
+services:
+  kit:
+    image: "rtdt-kit-app:latest"
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: kit-app/Dockerfile
+      network: host
+    privileged: true
+    networks:
+      outside:
+        ipv4_address: 54.218.2.37  # Example Only! Your public IP address may be different.
+    ports:
+      - "1024:1024/udp"
+      - "49100:49100/tcp"
+      - "47995-48012:47995-48012/tcp"
+      - "49000-49007:49000-49007/tcp"
+      - "47995-48012:47995-48012/udp"
+      - "49000-49007:49000-49007/udp"
+```
+
+At the bottom of `compose.yml`, add a network definition similar to what's shown below.  The subnet definition should include your _public_ IP address.  The easiest way to determine your subnet is to replace the last number in your IP address with `0` and append `/24`, e.g. `54.218.2.37` becomes `54.218.2.0/24`.
+```yaml
+networks:
+  outside:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 54.218.2.0/24  # Example Only!  Note that this is an IP range, not just the public IP address.
+```
+
+
+## Running the Blueprint
+
+*Important*: If you have not logged in to the NGC docker registry (nvcr.io), follow the instructions at https://org.ngc.nvidia.com/setup/api-keys to configure an NGC API key and use it with Docker. 
+
+Run the below docker compose command to run the blueprint.
+
+```sh
+cd $HOME/digital_twins_for_fluid_simulation
+```
+
+Start the docker containers:
+
+```sh
 docker compose up -d
 ```
 
-Open `http://IP_ADDR_OF_THE_MACHINE:5273` in a web browser.
+Wait for the blueprint to initilaize.  Initialization takes about 10 minutes for the first launch and about 2 minutes for subsequent launches.
 
-For local open:
-http://localhost:5273/?server=127.0.0.1&width=1920&height=1080&fps=60
+When initialization is complete, open `http://PUBLIC_IP_ADDR_OF_THE_MACHINE:5273` in a web browser. For a locally-hosted blueprint, open http://localhost:5273/.  An IP address lookup service like http://ipinfo.io can help find the blueprint host machine's public IP address.
 
-### Demo Functions
+
+### Blueprint Interactive Functions
 
 Upon launching of the blueprint the display will show the following:
 
@@ -267,35 +340,32 @@ If using MicroK8s, you can use _microk8s dashboard-proxy_ to track the status of
 
 ## Known issues
 
-1. Using a remote desktop connection can lead to a degraded experience. Factors like network latency, bandwidth limitations, and the performance of the remote machine can all contribute to issues such as slow response times, lag in mouse and keyboard actions, and poor video or audio quality.
+ - The blueprint supports at most one client connection at a time.
+ - Using a remote desktop connection can lead to a degraded experience. Factors like network latency, bandwidth limitations, and the performance of the remote machine can all contribute to issues such as slow response times, lag in mouse and keyboard actions, and poor video or audio quality.
 
     To address these challenges, the blueprint includes kit-app streaming. This feature allows users to experience applications on a locally-hosted browser, eliminating the need for a remote desktop connection. By running the application locally, users can enjoy smoother performance and a more responsive experience, as the local machine handles the processing and rendering tasks. This approach significantly reduces the impact of network issues and ensures a more reliable and efficient user experience.
-
-
-2. There is a bug that can occur when importing local images to microk8s. This can lead to an error message similiar to the below:
+ - There is a bug that can occur when importing local images to microk8s. This can lead to an error message similiar to the below:
     ```
     Failed to pull image "rtdt-kit-app:latest": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/rtdt-kit-app:latest": failed to unpack image on snapshotter overlayfs: unexpected media type text/html for sha256:3e725b7e0d5f791ecf63653350b13bb78153b5b9bd30d408eefb57e9a07da4f2: not found
     ```
 
     If you run into this, please try to re-import the image and verify that the image is imported correctly by running:
-
     ```
     microk8s ctr image list
     ```
 
     The label for the imported containers should be `io.cri-containerd.image=managed` if imported correctly.
-
     See https://github.com/canonical/microk8s/issues/4029#issuecomment-1707974585 for additional details.
+ 
 
 ## Limitations
-- Please note that this blueprint is designed to provide an example of integrating the workflow for developers and demonstrate key concepts and patterns. It is not a turn-key application ready for production deployment without customization.
-
-- The DoMINO-Automotive-Aero NIM may not be suitable for all external aerodynamics use-case and developers should read the NIM details to learn about its own limitations
+ 
+ - Please note that this blueprint is designed to provide an example of integrating the workflow for developers and demonstrate key concepts and patterns. It is not a turn-key application ready for production deployment without customization.
+ - The DoMINO-Automotive-Aero NIM may not be suitable for all external aerodynamics use-case and developers should read the NIM details to learn about its own limitations
 
 ## Licenses
 
-This blueprint is licensed under Omniverse License Agreement found [here](/LICENSE.md). 
-
+This blueprint is licensed under the Omniverse License Agreement found [here](/LICENSE.md). 
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
 
 ## Troubleshooting
@@ -322,7 +392,7 @@ Error response from daemon: unauthorized: <html>
 
 ### General Debugging
 
-You may need to check logs for trouble shooting. Do the following to do so:
+You may need to check logs for troubleshooting. Do the following to do so:
 
 ##### Tail logs live
 ```
@@ -392,16 +462,3 @@ docker compose restart kit
     ```
     git lfs checkout
     ```
-
-## Required Ports
-
-This application uses the `omni.kit.livestream.webrtc` Kit extension and the `@nvidia/omniverse-webrtc-streaming-library` client library for streaming the kit application to a web client. You must open the proper ports for everything to work correctly. Here is a list, but see the official documentation for more information:
-
-- web-app: `5273/tcp, 1024/udp`.
-- kit-app: `8011/tcp, 8111/tcp, 47995-48012/tcp, 47995-48012/udp, 49000-49007/tcp, 49100/tcp, 49000-49007/udp`.
-- other: `1024/udp`.
-
-The web-client can specify the stream URL to connect to through the URL query `server` parameter. For example, if both the web-app and kit-app servers are running on a remote instance with IP `12.12.122.122`, then `open http://12.12.122.122:5273?server=12.12.122.122`.
-
-In order to run on an EC2 instance, you must properly configure your security group to allow inbound traffic on the above listed TCP and UDP ports and you must configure your kit docker container to run on a docker network that's properly configured to expose the public IP address of the EC2 instance.
-
