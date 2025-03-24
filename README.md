@@ -23,6 +23,7 @@ The blueprint for a successful real-time wind tunnel digital twin requires sever
 - Omniverse Kit CAE Application: This application provides the computational tools and environment for rendering the results within Omniverse.
 - NVIDIA Inference Microservices (NIM) pre-trained automotive aerodynamics model: This is the AI surrogate model trained on computational fluid dynamics simulations. 
 
+The core AI model used in this blueprint is available as a standalone NIM on the [NGC Catalog](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/domino-automotive-aero) with detailed documentation available [here](https://docs.nvidia.com/nim/physicsnemo/domino-automotive-aero/latest/overview.html).
 
 
 ## Target audience 
