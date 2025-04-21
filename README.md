@@ -47,6 +47,7 @@ Setting up the digital twin requires a technical team with expertise in differen
 #### Minimum System Requirements
 **Hardware**
 - At least 2x RTX (TM) GPUs with at least 40GB of memory each, e.g., 2xL40S or 2xA6000
+  - For detailed technical requirements for NVIDIA Omniverse, see [this page](https://docs.omniverse.nvidia.com/dev-guide/latest/common/technical-requirements.html).
 - 128 GB RAM
 - 32 CPU Cores
 - 100 GB Storage
@@ -106,7 +107,7 @@ Login to the NGC in order to download the necessary containers following the ste
 Clone the repository using the following command:
 
 ```sh
-git clone ssh://github.com/NVIDIA-Omniverse-Blueprints/digital-twins-for-fluid-simulation $HOME/digital_twins_for_fluid_simulation
+git clone https://github.com/NVIDIA-Omniverse-blueprints/digital-twins-for-fluid-simulation.git $HOME/digital_twins_for_fluid_simulation
 ```
 
 Change to the resulting directory:
