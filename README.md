@@ -392,6 +392,25 @@ Error response from daemon: unauthorized: <html>
 </html>
 ```
 
+### Invalid Runtime Error
+
+If you see the following error when starting the docker containers, it means 
+that the NVIDIA docker runtime isn't correctly setup.
+
+```
+Error response from daemon: unknown or invalid runtime name: nvidia
+```
+
+To correct this error, run the following commands to add the `nvidia`
+runtime to your Docker installation.
+
+```
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+sudo nvidia-ctk runtime configure --runtime=containerd
+sudo systemctl restart containerd
+```
+
 ### General Debugging
 
 You may need to check logs for troubleshooting. Do the following to do so:
