@@ -14,7 +14,7 @@
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^6.1.2",
     "@mui/material": "^6.1.2",
-    "@nvidia/omniverse-webrtc-streaming-library": "^2.7.6",
+    "@nvidia/omniverse-webrtc-streaming-library": "5.6.0",
     "components": "^0.1.0",
     "framer-motion": "^11.11.4",
     "mui": "^0.0.1",

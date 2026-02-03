@@ -1,4 +1,4 @@
-import { AppStreamer } from '@nvidia/omniverse-webrtc-streaming-library';
+import { AppStreamer, StreamType } from '@nvidia/omniverse-webrtc-streaming-library';
 
 export interface OmniverseStreamConfig {
     source: "local",
@@ -40,25 +40,46 @@ export class OmniverseAPI {
         onCustom: StreamHandlerCallback | null = null,
         onStop: StreamHandlerCallback | null = null,
         onTerminate: StreamHandlerCallback | null = null,
-        onISSOUpdate: StreamHandlerCallback | null = null,
     ) {
-        AppStreamer.setup({
-            streamConfig: config,
+
+        const params = new URLSearchParams(config.urlLocation.search);
+
+        const server = params.get("server") ?? window.location.hostname;
+        const width = Number(params.get("width") ?? 1920);
+        const height = Number(params.get("height") ?? 1080);
+        const fps = Number(params.get("fps") ?? 60);
+
+        const signalingPort = Number(params.get("signalingPort") ?? 49100);
+        const mediaPortParam = params.get("mediaPort");
+        const mediaPort = mediaPortParam != null ? Number(mediaPortParam) : undefined;
+
+        const streamConfig = {
+            videoElementID: config.videoElementId,
+            audioElementID: config.audioElementId,
+            signalingServer: server,
+            signalingPort,
+            mediaServer: server,
+            ...(mediaPort != null ? { mediaPort } : {}),
+            auotLaunch: true,
+            cursor: 'free' as const,
+            mic: false,
+            width,
+            height,
+            fps,
+            authenticate: false,
+            maxReconnects: 20,
+            nativeTouchEvents: true,
+            localizeTextInput: true,
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onStart: (msg: any) => {
-                onStart?.(msg);
-            },
+            onStart: (msg: any) => { onStart?.(msg); },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onUpdate: (msg: any) => {
-                onUpdate?.(msg);
-            },
+            onUpdate: (msg: any) => { onUpdate?.(msg); },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onCustomEvent: (msg: any) => {
-
-                console.log((msg));
+                console.log(msg);
                 const event_type = msg.event_type;
 
-                // Handle custom 'inference complete' events
                 if (event_type === "inference_complete_signal") {
                     this.signalHandlers[event_type]?.(msg.payload.signal);
                 }
@@ -66,10 +87,9 @@ export class OmniverseAPI {
                 const isResponse = 'id' in msg.payload;
                 if (isResponse) {
                     const id: number = msg.payload['id'];
-                    this.requestResponses[id] = msg
+                    this.requestResponses[id] = msg;
                     onCustom?.(msg);
                 } else {
-
                     const event_type = msg.event_type;
                     if (event_type in this.signalHandlers) {
                         const signalMsg = msg.payload.signal;
@@ -80,22 +100,17 @@ export class OmniverseAPI {
                 }
             },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onStop: (msg: any) => {
-                onStop?.(msg);
-            },
+            onStop: (msg: any) => { onStop?.(msg); },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onTerminate: (msg: any) => {
-                onTerminate?.(msg);
-            },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onISSOUpdate: (msg: any) => {
-                onISSOUpdate?.(msg);
-            },
-            nativeTouchEvents: true,
-            authenticate: false,
-            doReconnect: true,
+            onTerminate: (msg: any) => {onTerminate?.(msg); },
+        };
 
-        })
+        const streamProps = {
+            streamSource: StreamType.DIRECT,
+            streamConfig
+        };
+
+        AppStreamer.connect(streamProps)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .then((result: any) => {
                 console.info(result);

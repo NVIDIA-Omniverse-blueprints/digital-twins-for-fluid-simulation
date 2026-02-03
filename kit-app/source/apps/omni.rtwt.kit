@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+#  its affiliates is strictly prohibited.
+[package]
+title = "RTWT Core"
+version = "2026.01"
+description = "RTWT Core"
+keywords = ["app", "rtwt", "core"]
+
+[dependencies]
+# Kit-CAE
+"omni.cae" = {}
+
+# RTWT specific plugins
+"omni.rtwt.controller" = {}
+
+# For action graphs in default stage
+"omni.graph.bundle.action" = {}
+
+[settings.app]
+
+# don't create empty stage on startup
+content.emptyStageOnStart = false
+
+# Show/Hide the performance counters in the upper right corner of the viewport.
+viewport.forceHideFps = false
+
+# default to fill viewport
+viewport.defaults.fillViewport = false
+
+
+[settings]
+rtx.occlusionDetection.enabled=true
+rtx.aovConverter.disocclusionScale = 2000000
+rtx.disocclusionDetection.conservativeSurfaceDetection=false
+rtx.disocclusionDetection.depthThreshold = 0.1
+rtx.post.dlss.execMode = 1
+
+[settings.log]
+# Sets the relative path to where the log file for this application is stored.
+file = "logs/omni.rtwt.log"
+fileLogLevel = "info"
+enableStandardStreamOutput = true
+outputStreamLevel = "warning"
+
+[settings.persistent]
+app.viewport.Viewport.Viewport0.resolution.0=1920
+app.viewport.Viewport.Viewport0.resolution.1=1080
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache",
+
+    # Kit-CAE
+    "${app}/../kit-cae/exts",
+    "${app}/../kit-cae/apps",
+
+    # For repo_precache_exts (this that happens before premake.lua,
+    # we have to pass the path directly from the build dir.
+    "_build/${platform}/${config}/kit-cae/exts",
+    "_build/${platform}/${config}/kit-cae/apps",
+]
+
+
+########################################################################################################################
+# BEGIN GENERATED PART (Remove from 'BEGIN' to 'END' to regenerate)
+########################################################################################################################
+
+# Kit SDK Version: 109.0.1+feature.252186.7a5e71a7.gl
+
+# Version lock for all dependencies:
+[settings.app.exts]
+enabled = [
+	"omni.anim.curve.core-1.5.3",
+	"omni.anim.window.timeline-109.0.2",
+	"omni.flowusd-109.0.1",
+	"omni.flowusd.bundle-1.2.0",
+	"omni.flowusd.ui-109.0.0",
+	"omni.graph.action-2.0.0",
+	"omni.graph.action_nodes-2.0.3",
+	"omni.graph.action_nodes_core-2.0.1",
+	"omni.graph.bundle.action-3.0.1",
+	"omni.graph.nodes-2.1.6",
+	"omni.graph.nodes_core-2.0.3",
+	"omni.graph.scriptnode-2.1.2",
+	"omni.graph.ui-2.1.6",
+	"omni.graph.ui_nodes-2.0.4",
+	"omni.kit.asset_converter-5.0.25",
+	"omni.kit.browser.core-2.3.17",
+	"omni.kit.browser.folder.core-1.12.1",
+	"omni.kit.livestream.messaging-1.2.1",
+	"omni.kit.tool.asset_importer-5.1.3",
+	"omni.kit.viewport.menubar.lighting-107.3.2",
+	"omni.kit.widget.zoombar-1.0.7",
+	"omni.usd.metrics.assembler-109.0.0",
+	"omni.usd.metrics.assembler.ui-109.0.0",
+	"omni.usd.schema.flow-109.0.0",
+	"omni.usd.schema.metrics.assembler-109.0.0",
+	"omni.vdb_timesample_editor-0.2.3",
+	"omni.warp.core-1.10.1",
+]
+
+########################################################################################################################
+# END GENERATED PART
+########################################################################################################################

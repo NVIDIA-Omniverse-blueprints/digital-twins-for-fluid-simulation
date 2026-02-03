@@ -46,8 +46,17 @@ Setting up the digital twin requires a technical team with expertise in differen
 
 #### Minimum System Requirements
 **Hardware**
-- At least 2x RTX (TM) GPUs with at least 40GB of memory each, e.g., 2xL40S or 2xA6000
-  - For detailed technical requirements for NVIDIA Omniverse, see [this page](https://docs.omniverse.nvidia.com/dev-guide/latest/common/technical-requirements.html).
+- NVIDIA RTX GPU(s): 
+    - 2x RTX GPUs with at least 40GB of memory each. For example:
+        - 2xL40 or L40s
+        - 2xA6000
+    
+    -OR-
+    
+    - 1x RTX GPU with >80GB of memory. For examples
+        - RTX 6000 Pro. 
+        - **Note** CUDA_DEVICE_KIT and CUDA_DEVICE_AERONIM should be set to the same value (often `0`), in this configuration.
+- For detailed technical requirements, **including recommended driver versions**, for NVIDIA Omniverse, see [this page](https://docs.omniverse.nvidia.com/dev-guide/latest/common/technical-requirements.html).
 - 128 GB RAM
 - 32 CPU Cores
 - 100 GB Storage
@@ -56,26 +65,32 @@ Setting up the digital twin requires a technical team with expertise in differen
 - Linux - Ubuntu 22.04 or 24.04
 
 **Software Requirements**
-- Git: For version control and repository management.
-- Git Large File System (LFS): For large files that are too large to efficiently store in a Git repository.
-- Python 3: For scripting and automation.
-- Docker: For containerized development and deployment. Ensure non-root users have Docker permissions.
-- NVIDIA Container Toolkit: For GPU-accelerated containerized development and deployment. Installation and configuring docker steps are required.
-- build-essentials: A package that includes make and other essential tools for building applications. For Ubuntu, install with ``sudo apt-get install build-essential``
+- [**Git**](https://git-scm.com/downloads): For version control and repository management.
+
+- [**Git Large File System LFS**](https://git-lfs.com/): For large files that are too large to efficiently store in a Git repository.
+
+- **Python 3**: For scripting and automation.
+
+- [**Docker**](https://docs.docker.com/engine/install/ubuntu/): For containerized development and deployment. **Ensure non-root users have Docker permissions.**
+
+- [**NVIDIA Container Toolkit**](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html): For GPU-accelerated containerized development and deployment. [**Installation**](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#installation) **and** [**Configuration**](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuration) **Docker steps are required.**
+
+- **build-essentials**: A package that includes `make` and other essential tools for building applications.  For Ubuntu, install with `sudo apt-get install build-essential`
+
 
 #### NVIDIA Container Toolkit
-The NVIDIA Container Toolkit is a set of tools and libraries that enable GPU-accelerated applications to run in containers. It provides the necessary components and configurations to access NVIDIA GPUs within containerized environments, such as Docker or Kubernetes. This toolkit allows developers to leverage the computational power of NVIDIA GPUs for applications in AI, machine learning, data analytics, and high-performance computing, while benefiting from the portability and isolation provided by containers.
+The NVIDIA Container Toolkit is a set of tools and libraries that enable GPU-accelerated applications to run in containers. It provides the necessary components and configurations to access NVIDIA GPUs within containerized environments, such as Docker. This toolkit allows developers to leverage the computational power of NVIDIA GPUs for applications in AI, machine learning, data analytics, and high-performance computing, while benefiting from the portability and isolation provided by containers.
 
-[Install NVIDIA container toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+[Install NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuration)
 
-Ensure you configure the toolkit after installing. 
+Ensure you perform [configuration steps](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#configuration) after installing. 
 
 #### NVIDIA GPU Cloud (NGC) Access
 Follow the steps to authenticate and generate an API Key to NGC on Docker.  This is needed to check out the NIM.
 
-[Docker with NGC](https://docs.nvidia.com/launchpad/ai/base-command-coe/latest/bc-coe-docker-basics-step-02.html)
+[Setup NGC API Key](https://docs.nvidia.com/ngc/latest/ngc-catalog-user-guide.html#generating-ngc-api-keys)
 
-Once you have the NGC API Key, you can export it to your environment. 
+Once you have the NGC API Key, you can export it to your environment: 
 
 ```bash
 export NGC_API_KEY=<ngc-api-key>
@@ -83,12 +98,12 @@ export NGC_API_KEY=<ngc-api-key>
 
 By default, the environment variable will only be available in the current shell session. Run one of the following commands to make the key available at startup:
 
-**If using bash**
+**If using bash:**
 ```sh
 echo "export NGC_API_KEY=<ngc-api-key>" >> ~/.bashrc
 ```
 
-**If using zsh**
+**If using zsh:**
 ```sh
 echo "export NGC_API_KEY=<ngc-api-key>" >> ~/.zshrc
 ```
@@ -97,9 +112,12 @@ Then source or restart your shell.
 
 The NIM performs a runtime check for the NGC API key to ensure it is valid. Therefore, make sure to add the NGC API Key as an environment variable to allow the application to run smoothly.
 
-Login to the NGC in order to download the necessary containers following the steps here:
+##### Docker Login for NGC 
+To download the necessary containers following the steps here:
 
-[Docker NGC](https://docs.nvidia.com/launchpad/ai/base-command-coe/latest/bc-coe-docker-basics-step-01.html#installing-docker-locally)
+[Docker Login NGC](https://docs.nvidia.com/ngc/latest/ngc-catalog-user-guide.html#logging-in-to-the-ngc-container-registry)
+
+After logging in as documented, you should see `Login Succeeded` message.
 
 ### Configuration
 
@@ -116,111 +134,70 @@ Change to the resulting directory:
 cd $HOME/digital_twins_for_fluid_simulation
 ```
 
-Run the below to build the docker containers:
-
-```sh
-./build-docker.sh
-```
-
 Copy the `.env_template` file to `.env`:
 
 ```sh
 cp .env_template .env
 ```
 
+Run the below to build the Docker containers:
+
+```sh
+./build-docker.sh
+```
+
 #### Open Required Ports
 
 This blueprint uses [Omniverse Kit App Streaming](https://docs.omniverse.nvidia.com/ovas/latest/index.html) and the `@nvidia/omniverse-webrtc-streaming-library` client library to stream the simulation to the client application. The following ports must be open to the client system, i.e. the system running the web browser displaying the wind tunnel:
 
-- web: `5273/tcp, 1024/udp`
-- kit: `8011/tcp, 8111/tcp, 47995-48012/tcp, 47995-48012/udp, 49000-49007/tcp, 49100/tcp, 49000-49007/udp`
-- other: `1024/udp`
+- Web: `80/tcp` (configurable via `WEB_HOST_PORT`), `1024/udp`
+- Kit: `47995-48012/tcp, 47995-48012/udp, 49000-49007/tcp, 49100/tcp, 49000-49007/udp`
 
 
 #### Configuration for Clouds and VPNs
-Cloud-hosted systems (e.g. AWS EC2 instances) and systems on a VPN may have a public IP address that is different from the system's private IP address.  If the system is configured with both a public and a private IP address, follow the instructions below.
+Cloud-hosted systems (e.g. AWS EC2 instances) and some VPN environments may have a public IP address that is different from the system's private IP address.
 
-Get the IP address of the primary route.  This is the private IP address.
+This blueprint publishes the required streaming/web ports on the **host** (see [Open Required Ports](#open-required-ports)). The containers communicate with each other on the internal Docker network (`rtwt`) using service DNS names (e.g. `aeronim`), so no special container networking configuration is typically required.
+
+1. Determine the host's private IP address:
 ```sh
 ip route get 1 | sed 's/^.*src \([^ ]*\).*$/\1/;q'
 ```
 
-Use an IP address service to check the public IP address.
+2. Determine the host's public IP address (if applicable):
 ```sh
 curl ipinfo.io/ip
 ```
 
-If the public IP address matches the private IP address then no changes are needed.  Skip ahead to [Running the Blueprint](#running-the-blueprint).
-If the public IP address is different from the private IP address, proceed with the changes described below.
+3. Access the blueprint using the address that is reachable from your client machine:
+- Local machine: `http://localhost/`
+- Same LAN/VPN: `http://<HOST_PRIVATE_IP>/`
+- Public internet: `http://<HOST_PUBLIC_IP>/`
 
-Edit `.env` and set `ZMQ_IP` to your _private_ IP address.  For example:
-
-```sh
-# Example Only! Your private IP address may be different.
-ZMQ_IP=172.31.1.144  
-```
-
-Edit `compose.yml`.  In the `kit` service definition, replace the `network_mode: host` directive with the network definition shown below.  Replace `YOUR_PUBLIC_IP_ADDRESS` with your public IP address.
-```yaml
-networks:
-  outside:
-    ipv4_address: YOUR_PUBLIC_IP_ADDRESS
-```
-
-The start of `compose.yml` will look similar to this:
-```yaml
-services:
-  kit:
-    image: "rtdt-kit-app:latest"
-    restart: unless-stopped
-    build:
-      context: .
-      dockerfile: kit-app/Dockerfile
-      network: host
-    privileged: true
-    networks:
-      outside:
-        ipv4_address: 54.218.2.37  # Example Only! Your public IP address may be different.
-    ports:
-      - "1024:1024/udp"
-      - "49100:49100/tcp"
-      - "47995-48012:47995-48012/tcp"
-      - "49000-49007:49000-49007/tcp"
-      - "47995-48012:47995-48012/udp"
-      - "49000-49007:49000-49007/udp"
-```
-
-At the bottom of `compose.yml`, add a network definition similar to what's shown below.  The subnet definition should include your _public_ IP address.  The easiest way to determine your subnet is to replace the last number in your IP address with `0` and append `/24`, e.g. `54.218.2.37` becomes `54.218.2.0/24`.
-```yaml
-networks:
-  outside:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 54.218.2.0/24  # Example Only!  Note that this is an IP range, not just the public IP address.
-```
+4. If the page loads but streaming does not connect, verify all required TCP/UDP ports are allowed in:
+- cloud security groups / firewall rules
+- VPN policies
 
 
 ## Running the Blueprint
 
-*Important*: If you have not logged in to the NGC docker registry (nvcr.io), follow the instructions at https://org.ngc.nvidia.com/setup/api-keys to configure an NGC API key and use it with Docker. 
+*Important*: If you have not logged in to the NGC Docker registry (nvcr.io), follow the instructions to [configure an NGC API key and use it with Docker](https://org.ngc.nvidia.com/setup/api-keys). 
 
-Run the below docker compose command to run the blueprint.
+Run the below Docker Compose command to run the blueprint:
 
 ```sh
 cd $HOME/digital_twins_for_fluid_simulation
 ```
 
-Start the docker containers:
+Start the Docker containers:
 
 ```sh
 docker compose up -d
 ```
 
-Wait for the blueprint to initilaize.  Initialization takes about 10 minutes for the first launch and about 2 minutes for subsequent launches.
+Wait for the blueprint to initialize.  Initialization takes about 10 minutes for the first launch and about 2 minutes for subsequent launches.
 
-When initialization is complete, open `http://PUBLIC_IP_ADDR_OF_THE_MACHINE:5273` in a web browser. For a locally-hosted blueprint, open http://localhost:5273/.  An IP address lookup service like http://ipinfo.io can help find the blueprint host machine's public IP address.
+When initialization is complete, open `http://PUBLIC_IP_ADDR_OF_THE_MACHINE` in a web browser. For a locally-hosted blueprint, open [localhost](http://localhost/).  An IP address lookup service like [IPinfo](http://ipinfo.io) can help find the blueprint host machine's public IP address.
 
 
 ### Blueprint Interactive Functions
@@ -246,118 +223,16 @@ All quantities displayed are averaged values.The impact of these modifications o
 
 There are also several predefined views you can toggle between to get different perspectives on the vehicle and its aerodynamic performance. 
 
-## Helm Chart deployment
-Testing was done using microK8s - you may need to alter the values.yaml of the helm chart based on your K8s deployment.
-
-### Installing Microk8s (pre-req if you don’t have a k8s cluster configured)
-1. Install Microk8s on your system.
-
-    https://microk8s.io/#install-microk8s
-
-2. Ensure the relevant add-ons are enabled:
-
-    ```
-    microk8s enable dashboard
-    ```
-    ```
-    microk8s enable dns
-    ```
-    ```
-    microk8s enable hostpath-storage
-    ```
-    ```
-    microk8s enable registry:size=100Gi 
-    ```
-    ```
-    microk8s enable gpu
-    ```
-3. Run a test CUDA container to ensure your cluster is working correctly. 
-
-[Cuda Sample](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/k8s/containers/cuda-sample)
-
-Example below (save as cuda-vector-add-test.yaml):
-```
-apiVersion: v1
-kind: Pod
-metadata:
- name: cuda-vector-add-test
- namespace: default
-spec:
- restartPolicy: OnFailure
- containers:
- - name: cuda-vector-add
-   image: "nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda12.5.0-ubuntu22.04"
-   resources:
-     limits:
-       nvidia.com/gpu: 1
-```
-4. Run the steps below to test the pod.
-```
-# Deploy the test pod
-microk8s kubectl apply -f cuda-vector-add-test.yaml
-
-
-# Watch the pod status
-microk8s kubectl get pod cuda-vector-add-test -w
-
-
-# Once the pod is running, check the logs
-microk8s kubectl logs cuda-vector-add-test
-```
-The test is successful if you see something like this:
-
-![Image of working test pod](images/successful_test.png)
-
-If the above doesn’t complete successfully, you have an issue with your K8s cluster. You will need to debug until the above runs successfully.
-
-### Deploying the Helm chart
-1. **Ensure you have successfully run the docker-build.sh script to create the docker containers locally.** Next, upload the containers to the microK8s registry.
-
-```
-    ##### Save images 
-    docker save rtdt-kit-app:latest > rtdt-kit-app.tar 
-    docker save rtdt-web-app:latest > rtdt-web-app.tar 
-    docker save rtdt-zmq-service:latest > rtdt-zmq-service.tar 
-        
-    ##### Import to MicroK8s 
-    microk8s ctr image import rtdt-kit-app.tar 
-    microk8s ctr image import rtdt-web-app.tar 
-    microk8s ctr image import rtdt-zmq-service.tar 
-```
-
-2. Next, we will run the script to deploy the helm chart
-```
-    ##### Make the script executable if it isn't already
-    chmod +x deploy-k8s.sh
-
-    ##### Deploy the chart
-    ./deploy-k8s.sh
-```
-
-If using MicroK8s, you can use _microk8s dashboard-proxy_ to track the status of the rtdt pod to see if there are any errors.
-
-![microk8s dashboard](images/microk8s.png)
-
-4. Once deployment is complete, you can access 127.0.0.1 in your browser, and the stream should be available. (It is accessed via port 80, so you don’t need to add a port to the end of the IP)
 
 ## Known issues
 
  - The blueprint supports at most one client connection at a time.
  - Using a remote desktop connection can lead to a degraded experience. Factors like network latency, bandwidth limitations, and the performance of the remote machine can all contribute to issues such as slow response times, lag in mouse and keyboard actions, and poor video or audio quality.
 
-    To address these challenges, the blueprint includes kit-app streaming. This feature allows users to experience applications on a locally-hosted browser, eliminating the need for a remote desktop connection. By running the application locally, users can enjoy smoother performance and a more responsive experience, as the local machine handles the processing and rendering tasks. This approach significantly reduces the impact of network issues and ensures a more reliable and efficient user experience.
- - There is a bug that can occur when importing local images to microk8s. This can lead to an error message similiar to the below:
-    ```
-    Failed to pull image "rtdt-kit-app:latest": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/rtdt-kit-app:latest": failed to unpack image on snapshotter overlayfs: unexpected media type text/html for sha256:3e725b7e0d5f791ecf63653350b13bb78153b5b9bd30d408eefb57e9a07da4f2: not found
-    ```
-
-    If you run into this, please try to re-import the image and verify that the image is imported correctly by running:
-    ```
-    microk8s ctr image list
-    ```
-
-    The label for the imported containers should be `io.cri-containerd.image=managed` if imported correctly.
-    See https://github.com/canonical/microk8s/issues/4029#issuecomment-1707974585 for additional details.
+    To address these challenges, the blueprint includes Kit application streaming. This feature allows users to experience applications on a locally-hosted browser, eliminating the need for a remote desktop connection. By running the application locally, users can enjoy smoother performance and a more responsive experience, as the local machine handles the processing and rendering tasks. This approach significantly reduces the impact of network issues and ensures a more reliable and efficient user experience.
+- Visual artifacts for flow and streamlines may exist depending on `.kit` file renderer and viewport settings. In some configurations flickering and ghosting may occur.
+- Renderer outputs can show inconsistent lighting results when using clear coat materials
+ 
  
 
 ## Limitations
@@ -374,7 +249,7 @@ This project will download and install additional third-party open source softwa
 
 ### Aeronim fails to start
 
-You may encounter the following error message when attempting the `docker compose up -d` step. It indicates that you need to perform a Docker login as described at https://org.ngc.nvidia.com/setup/api-keys.
+You may encounter the following error message when attempting the `docker compose up -d` step. It indicates that you need to perform a Docker login as described at https://org.ngc.nvidia.com/setup/api-keys :
 
 ```
 [+] Running 1/1
@@ -392,17 +267,31 @@ Error response from daemon: unauthorized: <html>
 </html>
 ```
 
+### Blank White, Grey, or Black Screen
+If you experience a blank white screen when attempting to load the web page,
+confirm that you have copied `.env_template` to `.env` and all configuration
+within `.env.` is correct. Then restart the containers.
+
+If you experience a blank grey or black screen, this usually indicates
+that the shaders for the scene are still being compiled. This generally
+only occurs the first time you run the blueprint, since shaders are
+cached in Docker volumes between runs. Initial runs can take as long
+as 30 minutes before the scene appears, depending on the system. Simply
+leave the containers and browser running while the shaders are compiling.
+It can be helpful to run `docker compose logs -f` to watch the logs for
+progress.
+
 ### Invalid Runtime Error
 
-If you see the following error when starting the docker containers, it means 
-that the NVIDIA docker runtime isn't correctly setup.
+If you see the following error when starting the Docker containers, it means 
+that the NVIDIA Docker runtime isn't correctly setup:
 
 ```
 Error response from daemon: unknown or invalid runtime name: nvidia
 ```
 
 To correct this error, run the following commands to add the `nvidia`
-runtime to your Docker installation.
+runtime to your Docker installation:
 
 ```
 sudo nvidia-ctk runtime configure --runtime=docker
@@ -415,31 +304,21 @@ sudo systemctl restart containerd
 
 You may need to check logs for troubleshooting. Do the following to do so:
 
-##### Tail logs live
+##### Tail logs live:
 ```
 docker compose logs kit -f
 ```
 
-```
-docker compoze logs zmq -f
-```
-
-##### View the entire log in the terminal
+##### View the entire log in the terminal:
 ```
 docker compose logs kit | less
 ```
 
-##### Dump the log to a file
+##### Dump the log to a file:
 ```
 docker compose logs kit > log.txt
 ```
 
-##### Restart after zmq issues
-You should restart kit after zmq issues:
-
-```
-docker compose restart kit
-```
 
 #### Ensure required files are present
 1. To ensure the required files are present, check that Git LFS properly installed and configured:
@@ -469,13 +348,13 @@ docker compose restart kit
     git lfs pull
     ```
 
-4. Check the file size  
+4. Check the file size:
 
     ```
     ls -lh rtwt-files/Collected_world_rtwt_Main_v1/world_rtwt_Main_v1.usda 
     ```
 
-    If any of the above steps shows an error, re-download all git lfs assests:
+    If any of the above steps shows an error, re-download all git lfs assets:
 
     ```
     git lfs fetch --all

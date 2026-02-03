@@ -1,1 +1,0 @@
-# Omni Kit Starter Setup Extension [omni.kit.starter.setup]

@@ -1,9 +1,24 @@
-FROM nvcr.io/nvidia/omniverse/ov-kit-kernel:106.5.0
+FROM nvcr.io/nvidia/omniverse/ov-base-ubuntu-22:2025.2.0 AS build
+USER root
+RUN echo "deb https://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb https://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb https://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y git git-lfs build-essential libunwind8 && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
-WORKDIR /app
-COPY kit-app/_build/packages/ /app
-RUN PACKAGE_FILE=$(find /app/. -type f -name "*.zip") && unzip $PACKAGE_FILE -d . && rm $PACKAGE_FILE
-COPY kit-app/scripts/startup.sh /app/startup.sh
+COPY kit-app /home/ubuntu/kit-app
+COPY build-all.sh /home/ubuntu/build-all.sh
+RUN chown -R ubuntu:ubuntu /home/ubuntu/
+
+USER ubuntu
+WORKDIR /home/ubuntu
+RUN ./build-all.sh
+
+# Final Stage
+FROM nvcr.io/nvidia/omniverse/ov-base-ubuntu-22:2025.2.0
 
 USER root
 # Create directories and set permissions
@@ -11,6 +26,7 @@ RUN mkdir -p /home/ubuntu/.cache/ov && \
     mkdir -p /home/ubuntu/.local/share/ov && \
     mkdir -p /home/ubuntu/usd && \
     mkdir -p /home/ubuntu/.cache/warp
+
 # Copy USD files into the image
 COPY rtwt-files/Collected_world_rtwt_Main_v1/ /home/ubuntu/usd/
 RUN     chown -R ubuntu:ubuntu /home/ubuntu/.cache && \
@@ -24,7 +40,16 @@ RUN echo "deb https://archive.ubuntu.com/ubuntu/ jammy main restricted universe 
     echo "deb https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
     apt-get update && \
     apt-get install -qy libunwind8 && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
+
+WORKDIR /scripts
+COPY kit-app/scripts/startup.sh /scripts/startup.sh
+COPY rtwt-files/demo_data_all/ /data/
+
+WORKDIR /app
+COPY --from=build /home/ubuntu/kit-app/_build/packages/*.zip /app
+RUN PACKAGE_FILE=$(find /app/. -type f -name "*.zip") && unzip -q $PACKAGE_FILE -d . && rm $PACKAGE_FILE
 
 USER ubuntu
 # Open ports for live streaming
@@ -36,4 +61,4 @@ EXPOSE 47995-48012/udp \
        8111/tcp \
        49100/tcp
 
-ENTRYPOINT ["./startup.sh"]
+ENTRYPOINT ["/scripts/startup.sh"]

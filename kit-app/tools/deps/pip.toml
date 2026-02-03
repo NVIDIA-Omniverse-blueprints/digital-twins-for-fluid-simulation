@@ -23,23 +23,11 @@
 # build_isolated: Sets `--isolated` for pip install when installing. This means that environment variables and user settings will be ignored.
 # add_python_to_lib_path: Will set --global-options to include Python's lib and include folders when running the pip install.
 #    Useful when a python pip package has a C extension that needs to bind to Python. Setting this to true will set build_isolated to False.
-
-########################################################################################################################
-# Dependencies:
-########################################################################################################################
-
-# NOTE - For any new packages added to this list, please make sure that the license is compatible with Omniverse (i.e. avoid GPL/LGPL) and
-# that a SWIPAT bug report is filed for legal to validate if there is no existing ticket.
-# The SWIPAT template is here: http://nvbugs/2732212
 [[dependency]]
 python = "../../_build/target-deps/python"
 packages = [
-    "starlette==0.41.2",
-    "h5py==3.12.1",
-    "vtk==9.3.1",
-    "pyvtk==0.5.18",
-    "cupy-cuda12x==13.3.0",
-    "cuda-python==12.6.0"
+    "trimesh==4.7.4",
+    "tritonclient[http]==2.60.0",
 ]
 target = "../../_build/target-deps/pip_prebundle" # This folder will be linked into 'example.mixed_ext' extension (see premake file)
 platforms = ["*"]

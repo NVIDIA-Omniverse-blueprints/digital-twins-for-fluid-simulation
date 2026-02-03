@@ -39,7 +39,7 @@ function createOmniverseApi(
     }
     return queryParams.get(name);
   };
-  const server = queryParamOrDefault("server", window.location.hostname);
+  const server = queryParamOrDefault("server", window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname);
   const width = queryParamOrDefault("width", 1920);
   const height = queryParamOrDefault("height", 1080);
   const fps = queryParamOrDefault("fps", 60);

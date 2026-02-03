@@ -1,0 +1,52 @@
+[package]
+title = "omni.rtwt.controller"
+version = "1.0.0"
+description = "Real-Time Wind Tunnel Controller Extension"
+readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI.
+category = "internal"  # One of categories for UI.
+keywords = ["kit", "rtwt", "controller"]
+icon = "data/icon.png"  # Icon to show in the extension manager
+reloadable = true
+
+
+[settings]
+# Format string for model paths
+exts."omni.rtwt.controller".stl_path_format = "/data/low_res/detailed_car_{}/aero_suv_low.stl"
+
+# if non-empty, then the USD will be loaded on startup.
+exts."omni.rtwt.controller".usd_file = ""
+
+# These settings configure the inference server communication
+exts."omni.rtwt.controller".triton_http_url = "localhost:8080"
+exts."omni.rtwt.controller".triton_timeout_s = 600
+exts."omni.rtwt.controller".triton_model_name = "controller"
+exts."omni.rtwt.controller".triton_batch_size = 128000
+exts."omni.rtwt.controller".triton_stencil_size = 1
+exts."omni.rtwt.controller".triton_inference_mode = "volume"
+
+# For debugging, set this to non-empty path to save inference data
+# to disk.
+exts."omni.rtwt.controller".debug_inference_data_path = ""
+
+# Disable click-to-select in the viewport
+exts."omni.rtwt.controller".disable_viewport_selection = false
+
+[dependencies]
+"omni.cae.data" = {}
+"omni.cae.algorithms.core" = {}
+"omni.cae.index" = {}
+"omni.cae.flow" = {}
+"omni.rtwt.schema" = {}
+"omni.kit.async_engine" = {}
+"omni.kit.livestream.messaging" = {}
+"omni.usd" = {}
+"omni.kit.ui.actions" = {}
+"omni.kit.quicklayout" = {}
+"omni.client" = {}
+"omni.kit.viewport.utility" = {}
+
+[[python.module]]
+name = "omni.rtwt.controller"
+
+[[python.module]]
+path = "pip_prebundle"

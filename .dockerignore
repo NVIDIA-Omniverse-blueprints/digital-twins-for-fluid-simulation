@@ -1,0 +1,14 @@
+# Apply ignores at repo-root build context
+# Exclude underscore-prefixed items anywhere under kit-app
+kit-app/_build
+kit-app/_repo
+kit-app/_compiler
+kit-app/_packages
+kit-app/**/__pycache__
+
+# Explicit fallback for usdSchema underscores
+kit-app/usdSchema/_*
+# Preserve existing kit-app excludes
+kit-app/.vscode
+kit-app/app
+kit-app/ext/kit-cgns/source/extensions/service_network

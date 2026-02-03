@@ -15,7 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import List
 
 import omni.repo.man
-from omni.repo.kit_template.frontend.template_tool import CLIInput
+from omni.repo.kit_template.frontend.template_tool import CLIInputColorPalette
 from omni.repo.man import resolve_tokens
 from omni.repo.man.exceptions import QuietExpectedError, StorageError
 from omni.repo.man.utils import change_cwd
@@ -37,6 +37,7 @@ console = Console(theme=theme)
 DOCKERFILE = pathlib.Path("tools/containers/Dockerfile.j2")
 ENTRYPOINT_DEFAULT = pathlib.Path("tools/containers/entrypoint.sh.j2")
 ENTRYPOINT_MEMCACHED = pathlib.Path("tools/containers/entrypoint_memcached.sh.j2")
+STREAM_SDK_TIMEOUT = pathlib.Path("tools/containers/stream_sdk.txt")
 KIT_ARGS = pathlib.Path("tools/containers/kit_args.txt")
 
 # Breadcrumb temporarily used to replace .kit name until
@@ -59,13 +60,14 @@ def _quiet_error(err_msg: str):
 
 
 def _run_command(command):
-    console.print("\[ctrl+c to Exit]", style=INFO_COLOR)
+    console.print("\[CTRL+C to Exit]", style=INFO_COLOR)
     try:
-        omni.repo.man.run_process(resolve_tokens(command), exit_on_error=True)
-    except (KeyboardInterrupt, SystemExit):
+        omni.repo.man.run_process(resolve_tokens(command), exit_on_error=False)
+    except KeyboardInterrupt:
         console.print("Exiting", style=INFO_COLOR)
-        # exit(0) for now due to non-zero exit reporting.
-        sys.exit(0)
+        raise QuietExpectedError("Exiting")
+    except Exception:
+        raise QuietExpectedError(f"Failure to execute: {resolve_tokens(command)}")
 
 
 def package_container(options: argparse.Namespace, config: dict, build_path: pathlib.Path):
@@ -119,12 +121,14 @@ def package_container(options: argparse.Namespace, config: dict, build_path: pat
             # Tokens that will be replaced in the entrypoint template.
             replacements = {
                 KIT_FILE_NAME_BREADCRUMB: target_kit,
-                # KIT_ARGS_BREADCRUMB: kit_args_path.read_text(),
                 KIT_ARGS_BREADCRUMB: KIT_ARGS.read_text(),
             }
 
             # In-place replace the known tokens
             _in_place_replace(tmpdir_entrypoint, replacements)
+
+        # Stream-SDK needs a timeout set a bit higher for now.
+        shutil.copy(STREAM_SDK_TIMEOUT.resolve(), tmpdir)
 
         # Now build the container image.
         # Set repo_diagnostic to map in stdin to prevent docker build from complaining.
@@ -155,7 +159,7 @@ def _in_place_replace(file: pathlib.Path, replacements: dict):
 
 
 def _select(apps: list) -> str:
-    cli_input = CLIInput()
+    cli_input = CLIInputColorPalette()
     return cli_input.select(
         message="Select with arrow keys which App would you like to containerize:", choices=apps, default=apps[0]
     )

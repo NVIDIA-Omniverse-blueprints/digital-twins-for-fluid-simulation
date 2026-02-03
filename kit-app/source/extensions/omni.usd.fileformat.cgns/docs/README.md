@@ -1,2 +1,0 @@
-# omni.usd.fileformat.cgns
-

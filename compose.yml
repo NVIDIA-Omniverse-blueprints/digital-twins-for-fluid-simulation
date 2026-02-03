@@ -6,25 +6,26 @@ services:
       context: .
       dockerfile: kit-app/Dockerfile
       network: host
+    depends_on:
+      aeronim:
+        condition: service_started
     privileged: true
-    network_mode: host 
     ports:
-      - "1024:1024/udp"
-      - "49100:49100/tcp"
-      - "47995-48012:47995-48012/tcp"
-      - "49000-49007:49000-49007/tcp"
-      - "47995-48012:47995-48012/udp"
-      - "49000-49007:49000-49007/udp"
+     - "1024:1024/udp"
+     - "49100:49100/tcp"
+     - "47995-48012:47995-48012/tcp"
+     - "49000-49007:49000-49007/tcp"
+     - "47995-48012:47995-48012/udp"
+     - "49000-49007:49000-49007/udp"
     environment:
-      CUDA_VISIBLE_DEVICES: "0"
-      KIT_APP: "${KIT_APP:-omni.rtwt.app.webrtc.kit}"
+      CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_KIT:-0}"
       OMNI_USER: "$OMNI_USER"
       OMNI_PASS: "$OMNI_PASS"
-      USD_URL: "${USD_URL:-/home/ubuntu/usd/world_rtwt_Main_v1.usda}"
-      ZMQ_IP: "${ZMQ_IP:-127.0.0.1}"
-      ZMQ_FIRST_PORT: "${ZMQ_FIRST_PORT:-5555}"
-      ZMQ_REQUEST_TIMEOUT: "${ZMQ_REQUEST_TIMEOUT:-5000}"
-      ZMQ_REQUEST_QUEUE_SIZE: "${ZMQ_REQUEST_QUEUE_SIZE:-1}"
+      KIT_APP: "${KIT_APP:-omni.rtwt.webrtc.kit}"
+      USD_URL: "${USD_URL:-/home/ubuntu/usd/world_rtwt_minimal.usda}"
+      STL_PATH_FORMAT: "${STL_PATH_FORMAT:-/data/low_res/detailed_car_{}/aero_suv_low.stl}"
+      NIM_TRITON_IP_ADDRESS: "${NIM_TRITON_IP_ADDRESS:-aeronim}"
+      NIM_TRITON_HTTP_PORT: "${NIM_TRITON_HTTP_PORT:-8080}"
       SenderTimeout: "${STREAMSDK_SENDER_TIMEOUT:-100000}"
     deploy:
       resources:
@@ -36,6 +37,11 @@ services:
     volumes:
       - "ov-cache:/home/ubuntu/.cache/ov"
       - "ov-local-share:/home/ubuntu/.local/share/ov/"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rtwt
+
   web:
     image: "rtdt-web-app:latest"
     restart: unless-stopped
@@ -43,33 +49,28 @@ services:
       context: web-app
       network: host
     ports:
-      - "5273:80/tcp"
+      - "${WEB_HOST_PORT:-5273}:80/tcp"
+    networks:
+      - rtwt
+    depends_on:
+      kit:
+        condition: service_started
+
   aeronim:
-    image: "nvcr.io/nim/nvidia/domino-automotive-aero:1.0.0"
+    image: "nvcr.io/nim/nvidia/domino-automotive-aero:2.0.0"
     runtime: nvidia
     environment:
-      CUDA_VISIBLE_DEVICES: "1"
+      CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_AERONIM:-1}"
       NGC_API_KEY: "${NGC_API_KEY}"
-    network_mode: host
     ipc: host
-    ports: 
+    ports:
       - "8080:8080"
-  zmq:
-    image: "rtdt-zmq-service:latest"
-    restart: unless-stopped
-    build:
-      context: .
-      dockerfile: service_network/Dockerfile
-    environment:
-      ZMQ_PORT: "5555"
-      NIM_TRITON_IP_ADDRESS: "${NIM_TRITON_IP_ADDRESS:-localhost}"
-      NIM_TRITON_HTTP_PORT: "${NIM_TRITON_HTTP_PORT:-8080}"
-    network_mode: host
-    ipc: host
-    ulimits:
-      memlock: -1
-      stack: 67108864
-
+    networks:
+      - rtwt
 volumes:
   ov-cache:
   ov-local-share:
+
+networks:
+  rtwt:
+    driver: bridge

@@ -13,7 +13,6 @@ repo_build.prebuild_copy {
 }
 
 -- Apps: for each app generate batch files and a project based on kit files (e.g. my_name.my_app.kit)
-
-define_app("omni.rtwt.app.kit")
-define_app("omni.rtwt.app.webrtc.kit")
+define_app("omni.rtwt.kit")
+define_app("omni.rtwt.webrtc.kit")
 define_app("omni.rtwt.editor.kit")

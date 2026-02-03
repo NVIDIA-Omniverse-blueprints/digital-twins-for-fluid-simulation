@@ -3,5 +3,8 @@
 set -x 
 set -e 
 
-(cd ../kit-app && ./build.sh)
-(cd ../web-app; npm install)
+# Build kit components using top-level build script
+../build-all.sh
+
+# Build the web app
+(cd ../web-app && npm install)

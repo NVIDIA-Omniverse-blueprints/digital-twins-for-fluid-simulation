@@ -1,5 +1,10 @@
 *.etl
 *.etli
-kit-app/app
-web-app/app
 .env
+web-app/app
+*.swp
+
+# we don't track kit-cae;
+kit-cae/
+logs/
+
