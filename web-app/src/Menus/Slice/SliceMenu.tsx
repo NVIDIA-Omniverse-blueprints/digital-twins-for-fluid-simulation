@@ -76,7 +76,7 @@ const SliceMenu: React.FC<SliceMenuProps> = ({
             {activeSection === 'X' && (
               <Draggable
                 axis="x"
-                nodeRef={draggableRef}
+                nodeRef={draggableRef as React.RefObject<HTMLElement>}
                 position={xPosition}
                 onDrag={handleDragXStop}
               >
@@ -90,7 +90,7 @@ const SliceMenu: React.FC<SliceMenuProps> = ({
             {activeSection === 'Y' && (
               <Draggable
                 axis="y"
-                nodeRef={draggableRef}
+                nodeRef={draggableRef as React.RefObject<HTMLElement>}
                 position={yPosition}
                 onDrag={handleDragYStop}
               >
@@ -100,7 +100,7 @@ const SliceMenu: React.FC<SliceMenuProps> = ({
             {activeSection === 'Z' && (
               <Draggable
                 axis="x"
-                nodeRef={draggableRef}
+                nodeRef={draggableRef as React.RefObject<HTMLElement>}
                 position={zPosition}
                 onDrag={handleDragZStop}
               >
