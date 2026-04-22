@@ -7,15 +7,10 @@ interface Props {
   isHidden: boolean;
 }
 
-export const Arronw = ({ className, onClick, isOpen }: Props): JSX.Element => {
+export const Arronw = ({ className, onClick, isOpen }: Props) => {
   return (
-    <button
-      className={`arronw-button ${className}`}
-      onClick={onClick}
-      
-
-    >
-      {isOpen ? '<' : '>'}  
+    <button className={`arronw-button ${className}`} onClick={onClick}>
+      {isOpen ? "<" : ">"}
     </button>
   );
 };

@@ -83,7 +83,7 @@ const CurveTraceMenu: React.FC<CurveTraceMenuProps> = ({ position, setPosition, 
           position={position}
           onDrag={(e, v) => updateStreamlinePosition(e, v, true)}
           onStop={(e, v) => updateStreamlinePosition(e, v, false)}
-          nodeRef={draggableRef}
+          nodeRef={draggableRef as React.RefObject<HTMLElement>}
         >
           <div className="green-dot" ref={draggableRef} />
         </Draggable>

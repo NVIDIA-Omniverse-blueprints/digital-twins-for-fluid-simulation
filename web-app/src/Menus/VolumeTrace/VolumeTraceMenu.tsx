@@ -42,7 +42,7 @@ const VolumeTraceMenu: React.FC<VolumeTraceMenuProps> = ({ position, setPosition
           bounds={{ left: 0, right: 120, top: 0, bottom: 40 }}
           position={position}
           onDrag={handleDrag}
-          nodeRef={draggableRef}
+          nodeRef={draggableRef as React.RefObject<HTMLElement>}
         >
           <div className="green-dots" ref={draggableRef}>
             {/* Green dots */}
