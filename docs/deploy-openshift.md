@@ -11,31 +11,39 @@ interactive wind tunnel for vehicle aerodynamics.
 | digital-twins | Aero NIM | `nvcr.io/nim/nvidia/domino-automotive-aero:2.0.0` | 1 | 8080 | DoMINO aerodynamic inference |
 | digital-twins | Kit (Omniverse) | `rtdt-kit-app:latest` | 1 | 49100 (HTTP), 47995–48012, 49000–49007 (WebRTC) | USD scene rendering + WebRTC streaming |
 | digital-twins | Web | `rtdt-web-app:latest` | 0 | 80 | React UI + Nginx reverse proxy to Kit |
+| digital-twins | coturn | `quay.io/coturn/coturn:4.7.0` | 0 | 5349 (TURNS) | TURN relay for WebRTC UDP-over-TCP tunneling |
 
 **Data flow:** Browser &rarr; Web (React UI) &rarr; Kit (WebRTC stream + API proxy)
-&rarr; Aero NIM (inference) &rarr; Kit (renders results) &rarr; Browser (live 3D viewport)
+&rarr; Aero NIM (inference) &rarr; Kit (renders results) &rarr; Browser (live 3D viewport).
+WebRTC media is tunneled through coturn (TURN relay over TLS/TCP).
 
-**Total resources:** 3 pods, 2 GPUs, ~110 GB storage (PVCs for Omniverse caches
+**Total resources:** 4 pods, 2 GPUs, ~110 GB storage (PVCs for Omniverse caches
 and NIM model).
 
-### NIM Operator Components
+### NIM Operator Components (Optional)
 
-When deployed with the NIM Operator (recommended on OpenShift), the Aero NIM is
-managed as a pair of custom resources:
-
-- **NIMCache** &mdash; downloads and caches the DoMINO model on a PVC. Annotated
-  with `helm.sh/resource-policy: keep` to survive upgrades and uninstalls.
-- **NIMService** &mdash; runs the inference server, references its NIMCache for
-  model storage, manages replicas, GPU allocation, and health probes.
+The Aero NIM can optionally be managed by the NIM Operator as a NIMCache +
+NIMService pair. However, the DoMINO Automotive Aero NIM has an internal port
+conflict when managed by the NIM Operator (`TRITON_HTTP_PORT 8080` conflicts
+with its API server), so the default OpenShift overlay uses a standard
+Deployment instead (`aeronim.enabled: true`, `nimOperator.domino-automotive-aero.enabled: false`).
 
 ### WebRTC Streaming Architecture
 
 This blueprint uses Omniverse Kit App Streaming with WebRTC. The web frontend
 proxies HTTP API and WebSocket traffic to Kit via Nginx (`/api/`, `/ws/`), but
-the actual video stream uses direct UDP connections on ports 47995–48012 and
-49000–49007. **OpenShift Routes cannot handle UDP traffic**, so the Kit service
-must remain as NodePort (or LoadBalancer) even when OpenShift Routes are used
-for the web frontend.
+the actual video stream uses UDP connections on ports 47995-48012 and
+49000-49007. **OpenShift Routes cannot handle UDP traffic** (Layer 7, TCP only),
+so the deployment includes a **coturn TURN relay** that tunnels WebRTC UDP
+media over TLS/TCP:
+
+1. **Signaling** (WebSocket): Browser &rarr; Kit edge Route (port 443) &rarr; Kit pod (port 49100)
+2. **Media** (WebRTC/UDP tunneled over TCP): Browser &rarr; coturn passthrough Route (port 443) &rarr; coturn pod (port 5349, TLS termination) &rarr; Kit pod (UDP internally)
+
+The client-side code monkey-patches `RTCPeerConnection` to inject the TURN
+server and force `iceTransportPolicy: "relay"`, ensuring all media goes through
+the tunnel. This is only activated when a TURN config is present (non-OpenShift
+deployments are unaffected).
 
 ## Tested Hardware
 
@@ -59,9 +67,9 @@ VRAM each, 128 GB RAM, 100 GB storage.
 | Area | Upstream Default | OpenShift Deployment | Impact |
 |------|-----------------|---------------------|--------|
 | Orchestration | Docker Compose | Helm chart on Kubernetes | Declarative lifecycle management |
-| Aero NIM management | Docker container with `runtime: nvidia` | NIM Operator (NIMCache + NIMService) | Automated model download, cache lifecycle |
+| Aero NIM management | Docker container with `runtime: nvidia` | Kubernetes Deployment (NIM Operator optional) | Standard Deployment with GPU resources and /dev/shm |
 | External access (web) | Host port mapping | OpenShift Route with TLS | Production-grade HTTPS ingress |
-| External access (Kit streaming) | Host port mapping | NodePort Service | WebRTC UDP requires direct connectivity |
+| External access (Kit streaming) | Host port mapping | ClusterIP + coturn TURN relay | WebRTC UDP tunneled over TLS/TCP via coturn; Kit signaling exposed through edge Route |
 | Security context | `privileged: true` in Compose | Custom SCC with privileged + host IPC | Compatible with OpenShift SCC enforcement |
 | Volume management | Docker named volumes | Dynamic PVCs | Cluster-native storage provisioning |
 | Kit image | Built locally via `build-docker.sh` | Pre-built and pushed to registry | Must push to accessible registry before deploy |
@@ -77,7 +85,8 @@ VRAM each, 128 GB RAM, 100 GB storage.
 ### Cluster Requirements
 
 - OpenShift 4.14+ with NVIDIA GPU Operator installed
-- NIM Operator installed (provides `apps.nvidia.com/v1alpha1` API)
+- cert-manager operator (for coturn TLS certificate provisioning)
+- NIM Operator (optional, for NIMCache/NIMService management of the Aero NIM)
 - At least 2 available GPUs on the same or different nodes
 
 ### Build and Push Images
@@ -141,8 +150,31 @@ ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
 | `openshift.routes.web.enabled` | `false` | Create a Route for the web frontend |
 | `openshift.routes.web.host` | `""` | Hostname (auto-generated if empty) |
 | `openshift.routes.web.tls.termination` | `edge` | TLS termination strategy |
+| `openshift.routes.kit.enabled` | `false` | Create an edge Route for Kit WebSocket signaling |
+| `openshift.routes.coturn.enabled` | `false` | Create a passthrough Route for coturn TURN relay |
 | `openshift.scc.create` | `false` | Create custom SCC and RoleBinding |
 | `openshift.scc.priority` | `10` | SCC priority |
+
+### coturn Block (`coturn:`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `coturn.enabled` | `false` | Deploy the coturn TURN relay |
+| `coturn.auth.username` | `turnuser` | TURN authentication username |
+| `coturn.auth.password` | `changeme` | TURN authentication password (set via `--set`) |
+| `coturn.tls.secretName` | `""` | TLS secret name for coturn (must pre-exist) |
+| `coturn.realm` | `turn.local` | TURN realm |
+
+### Stream Config Block (`streamConfig:`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `streamConfig.signalingServer` | `""` | Kit Route hostname for WebSocket signaling |
+| `streamConfig.signalingPort` | `443` | Signaling port (443 via Route) |
+| `streamConfig.forceWSS` | `true` | Force secure WebSocket |
+| `streamConfig.turn.urls` | `""` | TURN server URL (e.g. `turns:hostname:443?transport=tcp`) |
+| `streamConfig.turn.username` | `""` | TURN username |
+| `streamConfig.turn.credential` | `""` | TURN credential |
 
 ### NIM Operator Block (`nimOperator:`)
 
@@ -202,7 +234,37 @@ oc annotate secret ngc-api \
   meta.helm.sh/release-namespace=digital-twins -n digital-twins
 ```
 
-### 3. Install the Chart
+### 3. Create coturn TLS Certificate
+
+The coturn TURN relay needs a TLS certificate matching its Route hostname.
+Use cert-manager (if installed) or create the secret manually:
+
+**Option A: cert-manager (recommended)**
+
+```bash
+cat <<EOF | oc apply -n digital-twins -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rtwt-coturn-tls
+spec:
+  secretName: rtwt-coturn-tls
+  issuerRef:
+    name: letsencrypt-production   # adjust to your ClusterIssuer
+    kind: ClusterIssuer
+  dnsNames:
+    - rtwt-turn-digital-twins.apps.<cluster-domain>
+EOF
+```
+
+**Option B: Manual**
+
+```bash
+oc create secret tls rtwt-coturn-tls \
+  --cert=tls.crt --key=tls.key -n digital-twins
+```
+
+### 4. Install the Chart
 
 ```bash
 cd deploy/helm/digital-twins-fluid-sim/
@@ -210,34 +272,58 @@ cd deploy/helm/digital-twins-fluid-sim/
 helm install rtwt . \
   -f values.yaml \
   -f values-openshift.yaml \
+  --set coturn.auth.password="<choose-a-password>" \
   -n digital-twins
 ```
 
 This creates:
-- 1 NIMCache resource (triggers Aero NIM model download)
-- 1 NIMService resource (runs Aero NIM inference after cache is ready)
+- 1 Aero NIM Deployment (AI inference with GPU)
 - 1 Kit Deployment (Omniverse streaming with GPU)
 - 1 Web Deployment (Nginx + React frontend)
-- 1 OpenShift Route (web frontend with edge TLS)
+- 1 coturn Deployment (TURN relay for WebRTC UDP-over-TCP)
+- 3 OpenShift Routes (web edge, Kit signaling edge, coturn passthrough)
 - 1 Custom SCC + RoleBinding (privileged access for Kit and NIM)
 - 2 PVCs (Omniverse cache and local-share)
-- 1 ConfigMap (Nginx config with Kit service discovery)
+- 2 ConfigMaps (Nginx config, stream-config.json)
 
-### 4. Monitor NIM Model Download
+### 5. Configure Stream Config
 
-The NIMCache downloads the DoMINO model from NGC. This can take 10–30 minutes
-depending on network speed.
+After install, get the Route hostnames and update the stream config so the
+web frontend knows how to reach Kit signaling and the TURN relay:
 
 ```bash
-oc get nimcache -n digital-twins -w
+KIT_HOST=$(oc get route rtwt-kit -n digital-twins -o jsonpath='{.spec.host}')
+TURN_HOST=$(oc get route rtwt-turn -n digital-twins -o jsonpath='{.spec.host}')
+TURN_PASS="<same-password-from-step-4>"
+
+helm upgrade rtwt . \
+  -f values.yaml \
+  -f values-openshift.yaml \
+  --set coturn.auth.password="${TURN_PASS}" \
+  --set streamConfig.signalingServer="${KIT_HOST}" \
+  --set streamConfig.turn.urls="turns:${TURN_HOST}:443?transport=tcp" \
+  --set streamConfig.turn.username="turnuser" \
+  --set streamConfig.turn.credential="${TURN_PASS}" \
+  -n digital-twins
 ```
 
-Wait until the cache shows `Ready`:
+### 6. Monitor Startup
 
+The Aero NIM downloads the model on first start (10-30 minutes). Kit compiles
+shaders on first launch (up to 30 minutes; cached in PVC for subsequent starts).
+
+```bash
+# Watch all pods
+oc get pods -n digital-twins -w
+
+# Monitor Aero NIM model download
+oc logs -f deploy/rtwt-aeronim -n digital-twins
+
+# Monitor Kit shader compilation
+oc logs -f deploy/rtwt-kit -n digital-twins
 ```
-NAME             STATUS   AGE
-aeronim-cache    Ready    15m
-```
+
+Wait until all 4 pods show `Running 1/1`.
 
 ## Verification
 
@@ -250,28 +336,35 @@ oc get pods -n digital-twins
 Expected pods:
 
 ```
-NAME                           READY   STATUS    RESTARTS   AGE
-aeronim-0                      1/1     Running   0          5m
-rtwt-kit-xxxxxxxxxx-xxxxx      1/1     Running   0          5m
-rtwt-web-xxxxxxxxxx-xxxxx      1/1     Running   0          5m
+NAME                              READY   STATUS    RESTARTS   AGE
+rtwt-aeronim-xxxxxxxxxx-xxxxx     1/1     Running   0          5m
+rtwt-coturn-xxxxxxxxxx-xxxxx      1/1     Running   0          5m
+rtwt-kit-xxxxxxxxxx-xxxxx         1/1     Running   0          5m
+rtwt-web-xxxxxxxxxx-xxxxx         1/1     Running   0          5m
 ```
 
-### Check NIMService Status
+### Check Routes
 
 ```bash
-oc get nimservice -n digital-twins
+oc get routes -n digital-twins
 ```
+
+Expected routes: `rtwt-web` (edge), `rtwt-kit` (edge), `rtwt-turn` (passthrough).
 
 ### Health Checks
 
 ```bash
 # Aero NIM health
 oc exec deploy/rtwt-kit -n digital-twins -- \
-  curl -s http://aeronim:8080/v1/health/ready
+  curl -s http://rtwt-aeronim:8080/v1/health/ready
 
 # Web frontend
 oc exec deploy/rtwt-web -n digital-twins -- \
   curl -s http://localhost/
+
+# Stream config served correctly
+oc exec deploy/rtwt-web -n digital-twins -- \
+  curl -s http://localhost/stream-config.json
 ```
 
 ## Accessing the UI
@@ -279,31 +372,20 @@ oc exec deploy/rtwt-web -n digital-twins -- \
 ### Web Frontend (via Route)
 
 ```bash
-oc get route rtwt-web -n digital-twins -o jsonpath='{.spec.host}'
+WEB_HOST=$(oc get route rtwt-web -n digital-twins -o jsonpath='{.spec.host}')
+KIT_HOST=$(oc get route rtwt-kit -n digital-twins -o jsonpath='{.spec.host}')
+echo "https://${WEB_HOST}/?server=${KIT_HOST}&width=1920&height=1080&fps=60"
 ```
 
-Open `https://<route-hostname>` in your browser. The React UI loads and
-establishes a WebRTC connection to the Kit streaming service.
+Open that URL in your browser. The React UI loads, fetches `/stream-config.json`
+(which contains the TURN relay details), and establishes a WebRTC connection to
+Kit through the coturn TURN relay.
 
-### Kit WebRTC Streaming (via NodePort)
-
-The Kit service exposes WebRTC streaming ports as NodePorts. Determine the node
-IP and allocated ports:
-
-```bash
-# Get the node where Kit is running
-oc get pod -l app.kubernetes.io/component=kit -n digital-twins \
-  -o jsonpath='{.items[0].status.hostIP}'
-
-# Get the allocated NodePorts
-oc get svc rtwt-kit -n digital-twins
-```
-
-The web frontend must be configured to connect to the Kit streaming endpoint.
-If the WebRTC connection does not establish, verify that:
-1. The Kit NodePort ports are reachable from the client browser
-2. Firewall rules allow UDP traffic on the allocated NodePorts
-3. The Kit pod has GPU access and started successfully
+If the stream does not connect, verify:
+1. All 4 pods are `Running 1/1`
+2. The `streamConfig` values were set correctly (Step 5 above)
+3. The coturn TLS certificate is valid: `oc get certificate rtwt-coturn-tls -n digital-twins`
+4. Check browser console for `[OmniverseAPI] TURN relay injected:` message
 
 ## Testing End-to-End
 
@@ -354,16 +436,27 @@ Operator path, the NIMService handles IPC requirements directly.
 
 ### 3. WebRTC Streaming Cannot Use OpenShift Routes
 
-**What happened:** OpenShift Routes only handle HTTP(S) traffic. Omniverse Kit
-App Streaming uses WebRTC which requires direct UDP connectivity on ports
-47995–48012 and 49000–49007 for the media stream.
+**What happened:** OpenShift Routes only handle HTTP(S) traffic (Layer 7, TCP).
+Omniverse Kit App Streaming uses WebRTC which requires UDP on ports 47995-48012
+and 49000-49007 for the media stream. There is no mechanism in the Route API to
+expose UDP traffic. Inside the cluster everything works fine; the problem is
+purely about getting external browser traffic to Kit's UDP ports.
 
 **Services affected:** Kit (WebRTC streaming to browser)
 
-**Fix:** The Kit service uses `type: NodePort` instead of ClusterIP. The web
-frontend Route handles the HTML/API/WebSocket traffic, while the browser
-connects directly to Kit's NodePorts for the WebRTC media stream. Ensure
-firewall rules allow UDP traffic on the allocated NodePort range.
+**Fix:** Added a coturn TURN relay server that tunnels WebRTC UDP media over
+TLS/TCP. The browser connects to coturn through a passthrough TLS Route, and
+coturn relays the media to Kit's pod over UDP internally within the cluster.
+The client-side JavaScript monkey-patches `RTCPeerConnection` to inject the
+TURN server and force `iceTransportPolicy: "relay"`. Kit uses ClusterIP (not
+NodePort). This approach aligns with NVIDIA's newer Kit App-Streaming (KAS)
+architecture direction.
+
+**Key insight:** The NVIDIA streaming library rewrites ICE candidate IPs using
+the `mediaServer` config parameter. When a TURN relay is configured, the
+`mediaServer` parameter must be omitted so coturn can reach Kit's actual pod IP
+over UDP internally, rather than trying to route through the external Route
+hostname.
 
 ### 4. GPU Scheduling and Tolerations
 
@@ -447,7 +540,18 @@ screen and users may think the deployment failed.
 `oc logs -f deploy/rtwt-kit` to track shader compilation progress. Ensure
 the `ov-cache` PVC persists across pod restarts to avoid re-compilation.
 
-### 9. TOKENIZERS_PARALLELISM Race Condition
+### 9. Aero NIM Shared Memory Too Small
+
+**What happened:** The Aero NIM's Triton inference server requires more than the
+default 64 MB of `/dev/shm` for shared memory. The container crashes with
+`Failed to increase the shared memory pool size`.
+
+**Services affected:** Aero NIM
+
+**Fix:** The Helm chart mounts an `emptyDir` volume at `/dev/shm` with
+`sizeLimit` set via `aeronim.shmSize` (default 2Gi).
+
+### 10. TOKENIZERS_PARALLELISM Race Condition
 
 **What happened:** NIM containers using HuggingFace tokenizers may hit a thread
 pool race condition, causing startup failures.
