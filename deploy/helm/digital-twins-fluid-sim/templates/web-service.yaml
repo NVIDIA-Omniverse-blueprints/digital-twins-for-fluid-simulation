@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-web
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: {{ .Values.web.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.web.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web

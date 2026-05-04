@@ -1,0 +1,225 @@
+# Default values for digital-twins-fluid-sim.
+# This chart deploys three components:
+#   1. aeronim  — Domino Automotive Aero NIM (AI inference)
+#   2. kit      — Omniverse Kit CAE streaming application
+#   3. web      — React frontend served by Nginx
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------------------
+# NGC image-pull secret
+# ---------------------------------------------------------------------------
+imagePullSecret:
+  name: "ngc-secret"
+  registry: "nvcr.io"
+  username: "$oauthtoken"
+  # Set via --set imagePullSecret.password=$NGC_API_KEY at install time.
+  password: ""
+  create: true
+
+# NGC API secret used by the NIM Operator for model downloads.
+ngcApiSecret:
+  name: "ngc-api"
+
+# ---------------------------------------------------------------------------
+# Aero NIM — Domino Automotive Aerodynamics inference service
+# ---------------------------------------------------------------------------
+aeronim:
+  enabled: true
+  image:
+    repository: nvcr.io/nim/nvidia/domino-automotive-aero
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+  env:
+    NGC_API_KEY: ""
+  shmSize: "2Gi"
+  nodeSelector: {}
+  tolerations: []
+
+# ---------------------------------------------------------------------------
+# Omniverse Kit — CAE streaming application
+# ---------------------------------------------------------------------------
+kit:
+  image:
+    repository: rtdt-kit-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    # NodePort is required for WebRTC streaming (UDP ports cannot use Routes
+    # or Ingress). Use ClusterIP only if clients connect from inside the
+    # cluster or through a LoadBalancer that supports UDP.
+    type: NodePort
+    httpPort: 49100
+  env:
+    KIT_APP: "omni.rtwt.webrtc.kit"
+    USD_URL: "/home/ubuntu/usd/world_rtwt_minimal.usda"
+    STL_PATH_FORMAT: "/data/low_res/detailed_car_{}/aero_suv_low.stl"
+    OMNI_USER: ""
+    OMNI_PASS: ""
+    SenderTimeout: "100000"
+    OPENBLAS_NUM_THREADS: "10"
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+  # Kit requires elevated privileges for GPU/Vulkan access.
+  securityContext:
+    privileged: true
+  persistence:
+    ovCache:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+    ovLocalShare:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+  nodeSelector: {}
+  tolerations: []
+
+# ---------------------------------------------------------------------------
+# Web frontend — React app served by Nginx
+# ---------------------------------------------------------------------------
+web:
+  image:
+    repository: rtdt-web-app
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 80
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+
+# ---------------------------------------------------------------------------
+# TURN relay (coturn) — bridges WebRTC UDP media through TLS for environments
+# where direct UDP ingress is unavailable (e.g. OpenShift Routes).
+# Disabled by default. Enable alongside the coturn Route in values-openshift.yaml.
+# ---------------------------------------------------------------------------
+coturn:
+  enabled: false
+  image:
+    repository: quay.io/coturn/coturn
+    tag: "4.7.0"
+  auth:
+    username: "turnuser"
+    password: "changeme"
+    # Use an existing secret instead of the chart-managed one:
+    # existingSecret: "my-coturn-secret"
+    # secretKey: "password"
+  tls:
+    # TLS secret with tls.crt + tls.key matching the coturn Route hostname.
+    # Must be created before install (e.g. via cert-manager Certificate CR).
+    secretName: ""
+  realm: "turn.local"
+  relay:
+    minPort: 49200
+    maxPort: 49300
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+
+# ---------------------------------------------------------------------------
+# Stream config — passed to the web frontend so it knows how to reach the
+# Kit signaling server and (optionally) the TURN relay. Only used when
+# coturn.enabled=true. Values are written into a JSON file served by Nginx
+# at /stream-config.json; the React app fetches it at startup.
+# ---------------------------------------------------------------------------
+streamConfig:
+  signalingServer: ""
+  signalingPort: 443
+  forceWSS: true
+  turn:
+    urls: ""
+    username: ""
+    credential: ""
+
+# ---------------------------------------------------------------------------
+# OpenShift support (disabled by default — zero impact on vanilla Kubernetes)
+# ---------------------------------------------------------------------------
+openshift:
+  enabled: false
+
+  routes:
+    web:
+      enabled: false
+      host: ""
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+    # Kit signaling route (edge TLS → Kit:49100 WebSocket).
+    kit:
+      enabled: false
+      host: ""
+    # coturn TURN-TLS route (passthrough → coturn:5349).
+    coturn:
+      enabled: false
+      host: ""
+
+  scc:
+    create: false
+    priority: 10
+
+# ---------------------------------------------------------------------------
+# NIM Operator integration (disabled by default).
+# When enabled AND the NIM Operator CRD is present on the cluster, a NIMCache +
+# NIMService pair is created for the Aero NIM instead of a raw Deployment.
+# ---------------------------------------------------------------------------
+nimOperator:
+  domino-automotive-aero:
+    enabled: false
+    replicas: 1
+    service:
+      name: "aeronim"
+    image:
+      repository: nvcr.io/nim/nvidia/domino-automotive-aero
+      tag: "2.0.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    nodeSelector: {}
+    tolerations: []
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8080
+    startupProbe:
+      enabled: true
+      probe:
+        httpGet:
+          path: /v1/health/ready
+          port: 8080
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 180

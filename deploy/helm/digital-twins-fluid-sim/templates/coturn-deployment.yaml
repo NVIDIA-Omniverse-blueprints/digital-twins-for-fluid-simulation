@@ -1,0 +1,145 @@
+{{- if .Values.coturn.enabled }}
+{{- $fullName := include "digital-twins-fluid-sim.fullname" . }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullName }}-coturn
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $fullName }}-coturn-auth
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+type: Opaque
+stringData:
+  password: {{ .Values.coturn.auth.password | default "changeme" | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-coturn-config
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+data:
+  turnserver.conf: |
+    listening-port=3478
+    tls-listening-port=5349
+    min-port={{ .Values.coturn.relay.minPort | default 49200 }}
+    max-port={{ .Values.coturn.relay.maxPort | default 49300 }}
+
+    listening-ip=0.0.0.0
+    relay-ip=0.0.0.0
+
+    fingerprint
+    lt-cred-mech
+    realm={{ .Values.coturn.realm | default "turn.local" }}
+    user={{ .Values.coturn.auth.username | default "turnuser" }}:TURN_PASSWORD_PLACEHOLDER
+
+    no-multicast-peers
+    no-cli
+    no-tlsv1
+    no-tlsv1_1
+
+    cert=/etc/coturn/tls/tls.crt
+    pkey=/etc/coturn/tls/tls.key
+
+    simple-log
+    log-file=stdout
+    verbose
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}-coturn
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: coturn
+  template:
+    metadata:
+      labels:
+        {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: coturn
+    spec:
+      serviceAccountName: {{ $fullName }}-coturn
+      containers:
+        - name: coturn
+          image: {{ .Values.coturn.image.repository }}:{{ .Values.coturn.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              sed "s|TURN_PASSWORD_PLACEHOLDER|${TURN_PASSWORD}|g" \
+                /etc/coturn/config/turnserver.conf > /tmp/turnserver.conf
+              exec turnserver -c /tmp/turnserver.conf
+          ports:
+            - containerPort: 3478
+              name: turn
+              protocol: TCP
+            - containerPort: 5349
+              name: turns
+              protocol: TCP
+          env:
+            - name: TURN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.coturn.auth.existingSecret | default (printf "%s-coturn-auth" $fullName) }}
+                  key: {{ .Values.coturn.auth.secretKey | default "password" }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/coturn/config
+              readOnly: true
+            - name: tls
+              mountPath: /etc/coturn/tls
+              readOnly: true
+          resources:
+            {{- toYaml .Values.coturn.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullName }}-coturn-config
+        - name: tls
+          secret:
+            secretName: {{ .Values.coturn.tls.secretName | default (printf "%s-coturn-tls" $fullName) }}
+      {{- with .Values.coturn.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coturn.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName }}-coturn
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+  ports:
+    - name: turns
+      port: 5349
+      targetPort: 5349
+      protocol: TCP
+{{- end }}

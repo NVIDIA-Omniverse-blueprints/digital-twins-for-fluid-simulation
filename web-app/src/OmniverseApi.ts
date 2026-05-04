@@ -1,5 +1,11 @@
 import { AppStreamer, StreamType } from '@nvidia/omniverse-webrtc-streaming-library';
 
+export interface TurnConfig {
+    urls: string;
+    username: string;
+    credential: string;
+}
+
 export interface OmniverseStreamConfig {
     source: "local",
     videoElementId: string,
@@ -7,7 +13,9 @@ export interface OmniverseStreamConfig {
     messageElementId: string,
     urlLocation: {
         search: string
-    }
+    },
+    turn?: TurnConfig,
+    forceWSS?: boolean,
 }
 
 
@@ -52,14 +60,39 @@ export class OmniverseAPI {
         const signalingPort = Number(params.get("signalingPort") ?? 49100);
         const mediaPortParam = params.get("mediaPort");
         const mediaPort = mediaPortParam != null ? Number(mediaPortParam) : undefined;
+        const forceWSS = config.forceWSS ?? false;
+
+        // When a TURN relay is configured, monkey-patch RTCPeerConnection so
+        // every connection the NVIDIA streaming library creates includes the
+        // relay server. This forces all media through the TURN-TLS tunnel,
+        // bypassing the UDP ingress limitation on OpenShift Routes.
+        if (config.turn?.urls) {
+            const turnServer: RTCIceServer = {
+                urls: config.turn.urls,
+                username: config.turn.username,
+                credential: config.turn.credential,
+            };
+            const NativeRTCPC = window.RTCPeerConnection;
+            const Patched = function (this: RTCPeerConnection, rtcConfig?: RTCConfiguration) {
+                const patched: RTCConfiguration = { ...(rtcConfig || {}) };
+                patched.iceServers = [...(patched.iceServers || []), turnServer];
+                patched.iceTransportPolicy = "relay";
+                return new NativeRTCPC(patched);
+            } as unknown as typeof RTCPeerConnection;
+            Patched.prototype = NativeRTCPC.prototype;
+            Object.setPrototypeOf(Patched, NativeRTCPC);
+            window.RTCPeerConnection = Patched;
+            console.info("[OmniverseAPI] TURN relay injected:", config.turn.urls);
+        }
 
         const streamConfig = {
             videoElementID: config.videoElementId,
             audioElementID: config.audioElementId,
             signalingServer: server,
             signalingPort,
-            mediaServer: server,
+            ...(config.turn?.urls ? {} : { mediaServer: server }),
             ...(mediaPort != null ? { mediaPort } : {}),
+            ...(forceWSS ? { forceWSS: true } : {}),
             auotLaunch: true,
             cursor: 'free' as const,
             mic: false,
