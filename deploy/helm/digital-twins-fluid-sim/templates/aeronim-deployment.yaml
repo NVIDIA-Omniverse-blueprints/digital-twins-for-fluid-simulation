@@ -1,0 +1,68 @@
+{{/*
+  Standard Kubernetes Deployment for the Domino Automotive Aero NIM.
+  Skipped when the NIM Operator manages this workload.
+*/}}
+{{- if .Values.aeronim.enabled }}
+{{- $nimOp := index .Values.nimOperator "domino-automotive-aero" }}
+{{- if not (and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimOp.enabled true)) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-aeronim
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: aeronim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: aeronim
+  template:
+    metadata:
+      labels:
+        {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: aeronim
+    spec:
+      {{- if .Values.imagePullSecret.create }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      {{- end }}
+      containers:
+        - name: aeronim
+          image: "{{ .Values.aeronim.image.repository }}:{{ .Values.aeronim.image.tag }}"
+          imagePullPolicy: {{ .Values.aeronim.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: NGC_API_KEY
+              {{- if .Values.aeronim.env.NGC_API_KEY }}
+              value: {{ .Values.aeronim.env.NGC_API_KEY | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NGC_API_KEY
+              {{- end }}
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+          resources:
+            {{- toYaml .Values.aeronim.resources | nindent 12 }}
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.aeronim.shmSize | default "2Gi" }}
+          {{- with .Values.aeronim.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.aeronim.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

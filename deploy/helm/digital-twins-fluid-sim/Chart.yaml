@@ -1,0 +1,9 @@
+apiVersion: v2
+name: digital-twins-fluid-sim
+description: >-
+  Helm chart for the NVIDIA Omniverse Blueprint — Real-time CAE Digital Twins
+  for Fluid Simulation. Deploys the Domino Automotive Aero NIM, Omniverse Kit
+  CAE streaming application, and a React web frontend.
+type: application
+version: 0.1.0
+appVersion: "2.0.0"

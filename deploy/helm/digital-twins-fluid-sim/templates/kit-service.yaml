@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-kit
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kit
+spec:
+  type: {{ .Values.kit.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.kit.service.httpPort }}
+      targetPort: 49100
+      protocol: TCP
+    - name: webrtc-udp
+      port: 1024
+      targetPort: 1024
+      protocol: UDP
+    {{- range $i, $port := untilStep 47995 48013 1 }}
+    - name: stream-tcp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: TCP
+    {{- end }}
+    {{- range $i, $port := untilStep 47995 48013 1 }}
+    - name: stream-udp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: UDP
+    {{- end }}
+    {{- range $i, $port := untilStep 49000 49008 1 }}
+    - name: rtc-tcp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: TCP
+    {{- end }}
+    {{- range $i, $port := untilStep 49000 49008 1 }}
+    - name: rtc-udp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: UDP
+    {{- end }}
+  selector:
+    {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: kit

@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-kit
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: kit
+  template:
+    metadata:
+      labels:
+        {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: kit
+    spec:
+      {{- if .Values.imagePullSecret.create }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      {{- end }}
+      containers:
+        - name: kit
+          image: "{{ .Values.kit.image.repository }}:{{ .Values.kit.image.tag }}"
+          imagePullPolicy: {{ .Values.kit.image.pullPolicy }}
+          {{- with .Values.kit.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 49100
+              protocol: TCP
+            - name: webrtc-udp
+              containerPort: 1024
+              protocol: UDP
+            {{- range untilStep 47995 48013 1 }}
+            - name: stream-t-{{ . }}
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
+            {{- range untilStep 47995 48013 1 }}
+            - name: stream-u-{{ . }}
+              containerPort: {{ . }}
+              protocol: UDP
+            {{- end }}
+            {{- range untilStep 49000 49008 1 }}
+            - name: rtc-t-{{ . }}
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
+            {{- range untilStep 49000 49008 1 }}
+            - name: rtc-u-{{ . }}
+              containerPort: {{ . }}
+              protocol: UDP
+            {{- end }}
+          env:
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+            - name: KIT_APP
+              value: {{ .Values.kit.env.KIT_APP | quote }}
+            - name: USD_URL
+              value: {{ .Values.kit.env.USD_URL | quote }}
+            - name: STL_PATH_FORMAT
+              value: {{ .Values.kit.env.STL_PATH_FORMAT | quote }}
+            - name: NIM_TRITON_IP_ADDRESS
+              {{- $nimOp := index .Values.nimOperator "domino-automotive-aero" }}
+              {{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimOp.enabled true) }}
+              value: {{ $nimOp.service.name | quote }}
+              {{- else }}
+              value: {{ include "digital-twins-fluid-sim.fullname" . }}-aeronim
+              {{- end }}
+            - name: NIM_TRITON_HTTP_PORT
+              value: "8080"
+            - name: SenderTimeout
+              value: {{ .Values.kit.env.SenderTimeout | quote }}
+            - name: OPENBLAS_NUM_THREADS
+              value: {{ .Values.kit.env.OPENBLAS_NUM_THREADS | quote }}
+            {{- with .Values.kit.env.OMNI_USER }}
+            - name: OMNI_USER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.kit.env.OMNI_PASS }}
+            - name: OMNI_PASS
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.kit.persistence.ovCache.enabled }}
+            - name: ov-cache
+              mountPath: /home/ubuntu/.cache/ov
+            {{- end }}
+            {{- if .Values.kit.persistence.ovLocalShare.enabled }}
+            - name: ov-local-share
+              mountPath: /home/ubuntu/.local/share/ov
+            {{- end }}
+          resources:
+            {{- toYaml .Values.kit.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.kit.persistence.ovCache.enabled }}
+        - name: ov-cache
+          persistentVolumeClaim:
+            claimName: {{ include "digital-twins-fluid-sim.fullname" . }}-ov-cache
+        {{- end }}
+        {{- if .Values.kit.persistence.ovLocalShare.enabled }}
+        - name: ov-local-share
+          persistentVolumeClaim:
+            claimName: {{ include "digital-twins-fluid-sim.fullname" . }}-ov-local-share
+        {{- end }}
+      {{- with .Values.kit.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kit.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

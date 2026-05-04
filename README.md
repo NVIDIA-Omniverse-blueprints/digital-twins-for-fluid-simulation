@@ -224,6 +224,51 @@ All quantities displayed are averaged values.The impact of these modifications o
 There are also several predefined views you can toggle between to get different perspectives on the vehicle and its aerodynamic performance. 
 
 
+## OpenShift Deployment
+
+This blueprint can be deployed on Red Hat OpenShift AI using the included Helm
+chart with OpenShift support. The Helm chart lives in
+`deploy/helm/digital-twins-fluid-sim/` and includes:
+
+- An `openshift.enabled` feature flag (disabled by default) that gates all
+  OpenShift-specific resources — vanilla Kubernetes deployments are unaffected.
+- OpenShift Routes for the web frontend (edge TLS termination).
+- A custom SecurityContextConstraints (SCC) and RoleBinding for the Kit GPU
+  renderer and NIM inference pods.
+- NIM Operator integration (NIMCache + NIMService) for the Domino Automotive
+  Aero NIM, replacing the raw Deployment with operator-managed lifecycle.
+
+### Quick Start
+
+```bash
+# Create namespace and NGC secrets
+oc new-project digital-twins
+export NGC_API_KEY="<your-ngc-api-key>"
+oc create secret docker-registry ngc-secret \
+  --docker-server=nvcr.io --docker-username='$oauthtoken' \
+  --docker-password="${NGC_API_KEY}" -n digital-twins
+oc create secret generic ngc-api \
+  --from-literal=NGC_API_KEY="${NGC_API_KEY}" -n digital-twins
+
+# Label secrets for Helm adoption
+for s in ngc-secret ngc-api; do
+  oc label secret $s app.kubernetes.io/managed-by=Helm -n digital-twins
+  oc annotate secret $s meta.helm.sh/release-name=rtwt \
+    meta.helm.sh/release-namespace=digital-twins -n digital-twins
+done
+
+# Install with OpenShift overlay
+helm install rtwt deploy/helm/digital-twins-fluid-sim \
+  -f deploy/helm/digital-twins-fluid-sim/values.yaml \
+  -f deploy/helm/digital-twins-fluid-sim/values-openshift.yaml \
+  -n digital-twins
+```
+
+For the full deployment guide — including prerequisites, image building,
+GPU verification, configuration reference, and troubleshooting — see
+[docs/deploy-openshift.md](docs/deploy-openshift.md).
+
+
 ## Known issues
 
  - The blueprint supports at most one client connection at a time.

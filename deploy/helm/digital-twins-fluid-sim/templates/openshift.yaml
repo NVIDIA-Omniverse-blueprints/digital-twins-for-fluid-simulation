@@ -1,0 +1,207 @@
+{{- if .Values.openshift.enabled }}
+{{- $fullName := include "digital-twins-fluid-sim.fullname" . }}
+{{- $routes := .Values.openshift.routes | default dict }}
+
+{{/*
+  Route: web frontend
+*/}}
+{{- $webRoute := $routes.web | default dict }}
+{{- if $webRoute.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullName }}-web
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+  {{- with $webRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $webRoute.host }}
+  host: {{ . }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}-web
+    weight: 100
+  port:
+    targetPort: http
+  {{- with $webRoute.tls }}
+  tls:
+    termination: {{ .termination | default "edge" }}
+    {{- with .insecureEdgeTerminationPolicy }}
+    insecureEdgeTerminationPolicy: {{ . }}
+    {{- end }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }}
+
+{{/*
+  Route: Kit signaling (WebSocket over edge TLS).
+  HAProxy terminates TLS and forwards plain HTTP/WS to Kit:49100.
+  WebRTC media goes through the coturn TURN relay, not this Route.
+*/}}
+{{- $kitRoute := $routes.kit | default dict }}
+{{- if $kitRoute.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullName }}-kit
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kit
+  annotations:
+    haproxy.router.openshift.io/timeout: "3600s"
+spec:
+  {{- with $kitRoute.host }}
+  host: {{ . }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}-kit
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}
+
+{{/*
+  Route: coturn TURN-TLS relay (passthrough).
+  The browser dials turns:<hostname>:443?transport=tcp. HAProxy uses SNI
+  to route the raw TLS stream to coturn:5349, which terminates TLS and
+  relays UDP media between Kit and the browser inside the tunnel.
+*/}}
+{{- $coturnRoute := $routes.coturn | default dict }}
+{{- if and $coturnRoute.enabled $.Values.coturn.enabled }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullName }}-turn
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+  annotations:
+    haproxy.router.openshift.io/timeout: "3600s"
+spec:
+  {{- with $coturnRoute.host }}
+  host: {{ . }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}-coturn
+    weight: 100
+  port:
+    targetPort: turns
+  tls:
+    termination: passthrough
+  wildcardPolicy: None
+{{- end }}
+
+{{/*
+  RoleBinding: coturn ServiceAccount → anyuid SCC.
+  coturn image runs as a non-default UID.
+*/}}
+{{- if $.Values.coturn.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullName }}-coturn-anyuid
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: coturn
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullName }}-coturn
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.openshift.scc.create }}
+---
+# Custom SCC for the Kit application which requires privileged access for
+# GPU/Vulkan rendering, and for NIM pods that need anyuid.  Based on
+# "nonroot" with seLinuxContext: RunAsAny to avoid recursive relabeling of
+# cached Omniverse shader/data volumes.
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ $fullName }}-scc
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/description: >-
+      SCC for the Digital Twins Fluid Simulation blueprint.  Allows privileged
+      containers (required by the Omniverse Kit GPU/Vulkan renderer) and
+      host IPC (required by the Aero NIM for CUDA IPC).
+priority: {{ .Values.openshift.scc.priority | default 10 }}
+allowHostDirVolumePlugin: false
+allowHostIPC: true
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: true
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: true
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: RunAsAny
+readOnlyRootFilesystem: false
+requiredDropCapabilities: []
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+users:
+  - system:serviceaccount:{{ .Release.Namespace }}:default
+  {{- range $nimKey, $nimVal := .Values.nimOperator }}
+  {{- if and (kindIs "map" $nimVal) (hasKey $nimVal "service") }}
+  - system:serviceaccount:{{ $.Release.Namespace }}:{{ $nimVal.service.name }}
+  {{- end }}
+  {{- end }}
+volumes:
+  - configMap
+  - csi
+  - downwardAPI
+  - emptyDir
+  - ephemeral
+  - hostPath
+  - persistentVolumeClaim
+  - projected
+  - secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullName }}-scc
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:{{ $fullName }}-scc
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: {{ .Release.Namespace }}
+  {{- range $nimKey, $nimVal := .Values.nimOperator }}
+  {{- if and (kindIs "map" $nimVal) (hasKey $nimVal "service") }}
+  - kind: ServiceAccount
+    name: {{ $nimVal.service.name }}
+    namespace: {{ $.Release.Namespace }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

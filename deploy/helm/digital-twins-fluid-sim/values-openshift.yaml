@@ -1,0 +1,182 @@
+# values-openshift.yaml — OpenShift overlay for the Digital Twins Fluid Sim chart.
+#
+# Usage:
+#   helm install rtwt deploy/helm/digital-twins-fluid-sim \
+#     -f deploy/helm/digital-twins-fluid-sim/values.yaml \
+#     -f deploy/helm/digital-twins-fluid-sim/values-openshift.yaml \
+#     --set imagePullSecret.password="$NGC_API_KEY" \
+#     -n digital-twins
+#
+# This overlay:
+#   - Enables OpenShift Routes (web + Kit signaling + coturn) and SCC/RoleBindings
+#   - Deploys coturn TURN-TLS relay for WebRTC media (UDP cannot traverse Routes)
+#   - Sets Kit service to ClusterIP (signaling goes through an edge Route)
+#   - Web service uses ClusterIP (Route handles external access)
+
+# ---------------------------------------------------------------------------
+# Shorten the fullname to keep Route hostnames within DNS limits.
+# ---------------------------------------------------------------------------
+fullnameOverride: "rtwt"
+
+# On OpenShift the default SA's internal registry pull secret handles image
+# pulls for Kit and Web (from the internal registry). Setting create: false
+# prevents the chart from overriding the SA's pull secrets with ngc-secret
+# (which only covers nvcr.io).
+imagePullSecret:
+  create: false
+
+# ---------------------------------------------------------------------------
+# coturn TURN-TLS relay — solves the WebRTC UDP ingress problem.
+# The browser opens a TLS connection to coturn through a passthrough Route.
+# coturn relays UDP media between the browser and Kit inside the cluster.
+# ---------------------------------------------------------------------------
+coturn:
+  enabled: true
+  tls:
+    # TLS secret with tls.crt + tls.key matching the coturn Route hostname
+    # (e.g. rtwt-turn-digital-twins.apps.<cluster>). Create before install:
+    #   oc create secret tls rtwt-coturn-tls \
+    #     --cert=tls.crt --key=tls.key -n digital-twins
+    secretName: "rtwt-coturn-tls"
+  auth:
+    username: "turnuser"
+    password: ""      # Set via --set coturn.auth.password=<password>
+
+# Stream config tells the web frontend how to reach Kit signaling and the
+# TURN relay. Values are served as /stream-config.json by Nginx.
+# Set these AFTER install once the Route hostnames are known:
+#   helm upgrade rtwt ... \
+#     --set streamConfig.signalingServer=rtwt-kit-digital-twins.apps.<cluster> \
+#     --set streamConfig.turn.urls=turns:rtwt-turn-digital-twins.apps.<cluster>:443?transport=tcp \
+#     --set streamConfig.turn.username=turnuser \
+#     --set streamConfig.turn.credential=<password>
+streamConfig:
+  signalingServer: ""
+  signalingPort: 443
+  forceWSS: true
+  turn:
+    urls: ""
+    username: "turnuser"
+    credential: ""
+
+# ---------------------------------------------------------------------------
+# OpenShift features
+# ---------------------------------------------------------------------------
+openshift:
+  enabled: true
+
+  routes:
+    web:
+      enabled: true
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+    kit:
+      enabled: true
+    coturn:
+      enabled: true
+
+  scc:
+    create: true
+
+# ---------------------------------------------------------------------------
+# Override web service to ClusterIP — the Route handles external access.
+# ---------------------------------------------------------------------------
+web:
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/digital-twins/rtdt-web-app
+    tag: "latest"
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+
+# ---------------------------------------------------------------------------
+# Kit configuration for OpenShift.
+# Service type is ClusterIP — signaling is exposed via an edge Route.
+# WebRTC media goes through the coturn TURN relay.
+# ---------------------------------------------------------------------------
+kit:
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/digital-twins/rtdt-kit-app
+    tag: "latest"
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+  tolerations:
+    - key: g6-gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  persistence:
+    ovCache:
+      enabled: true
+      size: 50Gi
+      storageClass: "gp3-csi"
+      accessMode: ReadWriteOnce
+    ovLocalShare:
+      enabled: true
+      size: 10Gi
+      storageClass: "gp3-csi"
+      accessMode: ReadWriteOnce
+
+# ---------------------------------------------------------------------------
+# Use a standard Deployment for the Aero NIM.
+# The Domino Automotive Aero NIM has an internal port conflict when managed
+# by the NIM Operator (TRITON_HTTP_PORT 8080 conflicts with its API server).
+# ---------------------------------------------------------------------------
+aeronim:
+  enabled: true
+  tolerations:
+    - key: g6-gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+# ---------------------------------------------------------------------------
+# NIM Operator integration for the Domino Automotive Aero NIM.
+# Requires: NIM Operator installed, NGC image-pull and API secrets in namespace.
+# ---------------------------------------------------------------------------
+nimOperator:
+  domino-automotive-aero:
+    enabled: false
+    replicas: 1
+    service:
+      name: "aeronim"
+    image:
+      repository: nvcr.io/nim/nvidia/domino-automotive-aero
+      tag: "2.0.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: "gp3-csi"
+    nodeSelector: {}
+    tolerations:
+      - key: g6-gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: TOKENIZERS_PARALLELISM
+        value: "false"
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8080
+    startupProbe:
+      enabled: true
+      probe:
+        httpGet:
+          path: /v1/health/ready
+          port: 8080
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 180

@@ -5,6 +5,7 @@ import {
   OmniverseAPI,
   StreamHandlerCallback,
   OmniverseStreamStatus,
+  TurnConfig,
 } from "./OmniverseApi";
 
 export const defaultVideoElementId = "remote-video";
@@ -22,6 +23,25 @@ const defaultOnStreamCustomEvent = (_message: unknown) => {
   // console.debug(message);
 };
 
+interface StreamServerConfig {
+  signalingServer?: string;
+  signalingPort?: number;
+  forceWSS?: boolean;
+  turn?: TurnConfig | null;
+}
+
+async function fetchStreamConfig(): Promise<StreamServerConfig | null> {
+  try {
+    const resp = await fetch("/stream-config.json");
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data.signalingServer) return null;
+    return data as StreamServerConfig;
+  } catch {
+    return null;
+  }
+}
+
 function createOmniverseApi(
   videoElementId: string,
   audioElementId: string,
@@ -29,7 +49,8 @@ function createOmniverseApi(
   onStreamStart: StreamHandlerCallback,
   onStreamUpdate: StreamHandlerCallback,
   onStreamCustomEvent: StreamHandlerCallback,
-  onInferenceComplete?: StreamHandlerCallback 
+  onInferenceComplete?: StreamHandlerCallback,
+  serverConfig?: StreamServerConfig | null,
 ): OmniverseAPI {
   const queryParams = new URLSearchParams(window.location.search);
   const queryParamOrDefault = (name: string, defaultVal: unknown) => {
@@ -39,18 +60,32 @@ function createOmniverseApi(
     }
     return queryParams.get(name);
   };
-  const server = queryParamOrDefault("server", window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname);
+
+  const defaultServer = window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
+  const server = serverConfig?.signalingServer
+    ? queryParamOrDefault("server", serverConfig.signalingServer)
+    : queryParamOrDefault("server", defaultServer);
   const width = queryParamOrDefault("width", 1920);
   const height = queryParamOrDefault("height", 1080);
   const fps = queryParamOrDefault("fps", 60);
-  const url = `server=${server}&resolution=${width}:${height}&fps=${fps}&mic=0&cursor=free&autolaunch=true`;
+
+  let url = `server=${server}&resolution=${width}:${height}&fps=${fps}&mic=0&cursor=free&autolaunch=true`;
+  if (serverConfig?.signalingPort) {
+    url += `&signalingPort=${serverConfig.signalingPort}`;
+  }
   console.log(`Omniverse Stream URL: ${url}`);
+
+  const turn = serverConfig?.turn?.urls ? serverConfig.turn as TurnConfig : undefined;
+  const forceWSS = serverConfig?.forceWSS ?? false;
+
   const streamConfig: OmniverseStreamConfig = {
     source: "local",
     videoElementId,
     audioElementId,
     messageElementId,
     urlLocation: { search: url },
+    turn,
+    forceWSS,
   };
   const api = new OmniverseAPI(
     streamConfig,
@@ -59,7 +94,6 @@ function createOmniverseApi(
     onStreamCustomEvent
   );
 
-  // Register 'inference complete' callback
   if (onInferenceComplete) {
     api.onInferenceComplete(onInferenceComplete);
   }
@@ -130,16 +164,23 @@ export const OmniverseApiProvider = ({
       return;
     }
     apiInitialized.current = true;
-    const api = createOmniverseApi(
-      defaultVideoElementId,
-      defaultAudioElementId,
-      defaultMessageElementId,
-      onStreamStart,
-      onStreamUpdate,
-      defaultOnStreamCustomEvent,
-      onInferenceComplete
-    );
-    setApi(api);
+
+    fetchStreamConfig().then((serverConfig) => {
+      if (serverConfig) {
+        console.info("[OmniverseApiProvider] Stream config loaded:", serverConfig);
+      }
+      const api = createOmniverseApi(
+        defaultVideoElementId,
+        defaultAudioElementId,
+        defaultMessageElementId,
+        onStreamStart,
+        onStreamUpdate,
+        defaultOnStreamCustomEvent,
+        onInferenceComplete,
+        serverConfig,
+      );
+      setApi(api);
+    });
   }, [apiInitialized, onStreamStart, onStreamUpdate]);
   return (
     <OmniverseApiContext.Provider value={{ api, status }}>

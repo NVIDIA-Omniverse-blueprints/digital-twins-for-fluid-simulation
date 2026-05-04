@@ -1,0 +1,27 @@
+{{/*
+  Service for the Aero NIM. Created regardless of whether the NIM Operator
+  manages the pod — in the NIM Operator path, the NIMService creates its own
+  Service so this one is skipped.
+*/}}
+{{- if .Values.aeronim.enabled }}
+{{- $nimOp := index .Values.nimOperator "domino-automotive-aero" }}
+{{- if not (and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimOp.enabled true)) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-aeronim
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: aeronim
+spec:
+  type: {{ .Values.aeronim.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.aeronim.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "digital-twins-fluid-sim.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: aeronim
+{{- end }}
+{{- end }}

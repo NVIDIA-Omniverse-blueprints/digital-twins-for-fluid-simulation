@@ -1,0 +1,37 @@
+{{- if .Values.kit.persistence.ovCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-ov-cache
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kit
+spec:
+  accessModes:
+    - {{ .Values.kit.persistence.ovCache.accessMode }}
+  {{- if .Values.kit.persistence.ovCache.storageClass }}
+  storageClassName: {{ .Values.kit.persistence.ovCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.kit.persistence.ovCache.size }}
+{{- end }}
+---
+{{- if .Values.kit.persistence.ovLocalShare.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "digital-twins-fluid-sim.fullname" . }}-ov-local-share
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kit
+spec:
+  accessModes:
+    - {{ .Values.kit.persistence.ovLocalShare.accessMode }}
+  {{- if .Values.kit.persistence.ovLocalShare.storageClass }}
+  storageClassName: {{ .Values.kit.persistence.ovLocalShare.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.kit.persistence.ovLocalShare.size }}
+{{- end }}

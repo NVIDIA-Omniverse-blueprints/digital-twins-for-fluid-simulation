@@ -1,0 +1,22 @@
+{{- if .Values.coturn.enabled }}
+{{- $fullName := include "digital-twins-fluid-sim.fullname" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-stream-config
+  labels:
+    {{- include "digital-twins-fluid-sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+data:
+  stream-config.json: |
+    {
+      "signalingServer": {{ .Values.streamConfig.signalingServer | default "" | quote }},
+      "signalingPort": {{ .Values.streamConfig.signalingPort | default 443 }},
+      "forceWSS": {{ .Values.streamConfig.forceWSS | default true }},
+      "turn": {
+        "urls": {{ .Values.streamConfig.turn.urls | default "" | quote }},
+        "username": {{ .Values.streamConfig.turn.username | default "" | quote }},
+        "credential": {{ .Values.streamConfig.turn.credential | default "" | quote }}
+      }
+    }
+{{- end }}
