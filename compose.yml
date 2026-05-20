@@ -1,15 +1,52 @@
+# =============================================================================
+# Real-Time Wind Tunnel (RTWT) — Docker Compose stack
+# =============================================================================
+#
+# Services:
+#   kit      — Kit WebRTC app streaming a USD scene (standard profile)
+#   kit-lite — Same app in offline mode, serving cached inference (lite profile)
+#   aeronim  — Triton inference server hosting the AeroNIM CFD model (standard)
+#   web      — Trame-based web frontend (both profiles)
+#   launch-proxy — Reverse proxy for launchable/cloud HTTPS entrypoints
+#
+# Profiles (selected via COMPOSE_PROFILES in .env, or `--profile` on the CLI):
+#   standard — kit + aeronim + web. Needs 2 GPUs and an NGC API key.
+#   lite     — kit-lite + web. Single GPU, offline, reads pre-baked cache.
+#
+# Configuration lives in .env (see .env_template for the full list).
+#
+# Live code editing:
+#   Python extension sources and scripts/ are bind-mounted read-only into the
+#   containers. Edits on the host take effect after restarting the service —
+#   no image rebuild required. Compiled/C++ code still requires a rebuild.
+#
+# Common commands:
+#   docker compose --profile lite up --build   # build + run offline stack
+#   docker compose --profile standard up       # run full stack (requires 2 GPUs)
+#   docker compose down -v                     # stop and wipe ov-cache volumes
+# =============================================================================
+
 services:
-  kit:
+  # ---------------------------------------------------------------------------
+  # kit — Omniverse Kit application (standard profile)
+  #
+  # The `&kit-base` YAML anchor lets `kit-lite` inherit this full definition
+  # and only override the profile + offline env var.
+  # ---------------------------------------------------------------------------
+  kit: &kit-base
     image: "rtdt-kit-app:latest"
     restart: unless-stopped
     build:
       context: .
-      dockerfile: kit-app/Dockerfile
+      dockerfile: Dockerfile
       network: host
     depends_on:
       aeronim:
         condition: service_started
-    privileged: true
+        required: false     # aeronim absent in lite profile
+    privileged: true         # required for NVIDIA driver access + WebRTC perf
+    # WebRTC streaming ports — must match the ranges expected by the Omniverse
+    # Streaming SDK. 1024/udp is signalling; the higher ranges are media.
     ports:
      - "1024:1024/udp"
      - "49100:49100/tcp"
@@ -17,16 +54,25 @@ services:
      - "49000-49007:49000-49007/tcp"
      - "47995-48012:47995-48012/udp"
      - "49000-49007:49000-49007/udp"
-    environment:
+    profiles: ["standard"]
+    environment: &kit-base-env
+      # GPU used for rendering (see .env_template for multi-GPU setups).
       CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_KIT:-0}"
+      # Optional Nucleus/Omniverse credentials — only needed if the scene
+      # references omniverse:// URLs. Safe to leave unset for local stages.
       OMNI_USER: "$OMNI_USER"
       OMNI_PASS: "$OMNI_PASS"
+      # Kit app bundle to launch. Override to swap front-ends (e.g. usd_viewer).
       KIT_APP: "${KIT_APP:-omni.rtwt.webrtc.kit}"
-      USD_URL: "${USD_URL:-/home/ubuntu/usd/world_rtwt_minimal.usda}"
-      STL_PATH_FORMAT: "${STL_PATH_FORMAT:-/data/low_res/detailed_car_{}/aero_suv_low.stl}"
+      # Triton endpoint used by omni.rtwt.inference. Defaults to the compose
+      # service name so the kit container can resolve it over the rtwt network.
       NIM_TRITON_IP_ADDRESS: "${NIM_TRITON_IP_ADDRESS:-aeronim}"
       NIM_TRITON_HTTP_PORT: "${NIM_TRITON_HTTP_PORT:-8080}"
+      # Raise the StreamSDK sender timeout when debugging — pausing in a
+      # debugger otherwise trips the default ~2s watchdog and drops the stream.
       SenderTimeout: "${STREAMSDK_SENDER_TIMEOUT:-100000}"
+      NGC_API_KEY: "${NGC_API_KEY}"
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY}"
     deploy:
       resources:
         reservations:
@@ -34,43 +80,153 @@ services:
             - driver: nvidia
               device_ids: ["0"]
               capabilities: [gpu]
-    volumes:
+    volumes: &kit-base-volumes
+      # Named volumes persist Omniverse caches across `compose up` invocations
+      # so shader/material compilation doesn't redo work every start.
       - "ov-cache:/home/ubuntu/.cache/ov"
       - "ov-local-share:/home/ubuntu/.local/share/ov/"
+
+      # USD stages and sample data (including pre-baked inference cache).
+      - ./stages:/app/rtwt/stages:ro
+      - ./data:/app/rtwt/data:ro
+
+      # Live-edit mounts: Python extensions load from the host tree, so edits
+      # on disk are picked up on the next app restart without a rebuild.
+      - ./scripts/:/scripts/:ro
+      - ./source/extensions/omni.rtwt.controller/python/:/app/exts/omni.rtwt.controller/omni/rtwt/controller/:ro
+      - ./source/extensions/omni.rtwt.delegate/python/:/app/exts/omni.rtwt.delegate/omni/rtwt/delegate/:ro
+      - ./source/extensions/omni.rtwt.inference/python/:/app/exts/omni.rtwt.inference/omni/rtwt/inference/:ro
+      - ./source/extensions/omni.rtwt.schema/python/:/app/exts/omni.rtwt.schema/omni/rtwt/schema/:ro
+
+    # Lets code inside the container reach services on the host (e.g. a local
+    # Triton running on the developer's laptop) via host.docker.internal.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - rtwt
+      rtwt:
+        aliases:
+          - kit-stream
 
+  # ---------------------------------------------------------------------------
+  # kit-lite — same image as `kit`, offline inference mode (lite profile)
+  #
+  # Inherits everything from the `kit` service via the `*kit-base` anchor and
+  # just flips the profile + sets RTWT_OFFLINE_MODE. No aeronim, no NGC key.
+  # ---------------------------------------------------------------------------
+  kit-lite:
+    <<: *kit-base
+    profiles: ["lite"]
+    environment:
+      <<: *kit-base-env
+      # Serve inference results from data/cache/ instead of calling Triton.
+      RTWT_OFFLINE_MODE: "true"
+
+  # ---------------------------------------------------------------------------
+  # web — Trame frontend (both profiles)
+  #
+  # Connects to whichever kit variant is running on the shared rtwt network.
+  # Container always listens on 5173; host port is configurable via .env.
+  # ---------------------------------------------------------------------------
   web:
-    image: "rtdt-web-app:latest"
+    profiles: ["standard", "lite"]
+    image: "rtdt-trame-app:latest"
     restart: unless-stopped
     build:
-      context: web-app
+      context: .
+      dockerfile: trame-app/Dockerfile
       network: host
     ports:
-      - "${WEB_HOST_PORT:-5273}:80/tcp"
+      - "${WEB_HOST_PORT:-5173}:5173/tcp"
+    environment:
+      RTWT_SIGNALING_SERVER: "${RTWT_SIGNALING_SERVER:-}"
+      RTWT_SIGNALING_PORT: "${RTWT_SIGNALING_PORT:-}"
+      RTWT_MEDIA_SERVER: "${RTWT_MEDIA_SERVER:-}"
+      RTWT_FORCE_WSS: "${RTWT_FORCE_WSS:-}"
+      RTWT_PUBLIC_IP: "${RTWT_PUBLIC_IP:-}"
+      RTWT_DISCOVER_PUBLIC_IP: "${RTWT_DISCOVER_PUBLIC_IP:-1}"
     networks:
       - rtwt
+    # `required: false` on both deps — exactly one of the kit services is
+    # enabled by the active profile, so the other legitimately won't exist.
     depends_on:
       kit:
         condition: service_started
+        required: false     # absent in lite profile
+      kit-lite:
+        condition: service_started
+        required: false     # absent in standard profile
+    volumes:
+      # Live-edit the frontend without rebuilding the image.
+      - ./trame-app/app.py:/app/app.py:ro
 
+  # ---------------------------------------------------------------------------
+  # aeronim — Triton Inference Server hosting the AeroNIM CFD model
+  #
+  # Only runs under the standard profile. The lite profile skips this service
+  # and reads pre-baked inference results from data/cache/ instead.
+  # Requires a valid NGC API key to pull the base image.
+  # ---------------------------------------------------------------------------
   aeronim:
-    image: "nvcr.io/nim/nvidia/domino-automotive-aero:2.0.0"
+    profiles: ["standard"]
+    build:
+      context: .
+      dockerfile: aeronim/Dockerfile.aeronim
     runtime: nvidia
     environment:
+      # Should be a different GPU from CUDA_DEVICE_KIT when possible —
+      # rendering and inference compete for VRAM if they share a device.
       CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_AERONIM:-1}"
       NGC_API_KEY: "${NGC_API_KEY}"
-    ipc: host
+    ipc: host                # shared-memory transport between Triton processes
     ports:
-      - "8080:8080"
+      - "8080:8080"          # Triton HTTP endpoint (matches NIM_TRITON_HTTP_PORT)
+    volumes:
+      # Same read-only stages/data the kit container sees, at a different path.
+      - ./data:/opt/data:ro
+      - ./stages:/opt/stages:ro
+
+      # Live-edit mounts for the Triton-side Python backend and shared libs.
+      - ./aeronim/rtwt:/opt/triton/rtwt:ro
+      - ./kit-cae/source/extensions/omni.cae.dav_libs/dav:/opt/python_packages/dav:ro
     networks:
       - rtwt
+
+  # ---------------------------------------------------------------------------
+  # launch-proxy — public edge for launchable-style deployments
+  #
+  # Serves the Trame frontend and proxies Kit's /sign_in signaling endpoint so
+  # HTTPS secure links (for example Brev) can use one browser-facing URL. The
+  # WebRTC media ports still need to be exposed on the host.
+  # ---------------------------------------------------------------------------
+  launch-proxy:
+    profiles: ["standard", "lite"]
+    image: "rtdt-launch-proxy:latest"
+    restart: unless-stopped
+    build:
+      context: launch-proxy
+    ports:
+      - "${RTWT_HTTP_HOST_PORT:-80}:80/tcp"
+      - "${RTWT_HTTPS_HOST_PORT:-443}:443/tcp"
+    depends_on:
+      web:
+        condition: service_started
+      kit:
+        condition: service_started
+        required: false
+      kit-lite:
+        condition: service_started
+        required: false
+    networks:
+      - rtwt
+
+# Named volumes — survive `compose down`; remove with `compose down -v` to
+# force a cold cache (useful when Omniverse shader compilation gets wedged).
 volumes:
   ov-cache:
   ov-local-share:
 
+# Dedicated bridge network so services resolve each other by name (aeronim,
+# kit, web) without polluting Docker's default network.
 networks:
   rtwt:
     driver: bridge

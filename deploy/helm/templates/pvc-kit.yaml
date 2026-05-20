@@ -1,0 +1,50 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+
+Optional PVCs backing the kit pod's Omniverse cache volumes. Each one is
+rendered only when the matching `kit.persistence.*.enabled` flag is true.
+Default is off (volumes fall back to emptyDir in deployment-kit.yaml). Enable
+to skip the one-time ~5-10 min shader compile on pod reschedule.
+
+The `rtwt-data` volume (USD stages + pre-baked inference cache) is deliberately
+NOT backed by a PVC: the data image is the durable source of truth for that
+content, staged in at pod start by the `stage-data` init container.
+*/}}
+{{- if .Values.kit.persistence.ovCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rtdt.fullname" . }}-ov-cache
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.kit.selectorLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.kit.persistence.ovCache.size | quote }}
+  {{- with .Values.kit.persistence.ovCache.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if .Values.kit.persistence.ovLocalShare.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "rtdt.fullname" . }}-ov-local-share
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.kit.selectorLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.kit.persistence.ovLocalShare.size | quote }}
+  {{- with .Values.kit.persistence.ovLocalShare.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

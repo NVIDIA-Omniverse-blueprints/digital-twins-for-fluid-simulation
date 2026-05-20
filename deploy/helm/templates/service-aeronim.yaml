@@ -1,0 +1,25 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+{{- if include "rtdt.aeronimEnabled" . -}}
+# ClusterIP service for the aeronim Triton HTTP endpoint. The kit container
+# reaches it by service DNS (`<fullname>-aeronim`); see NIM_TRITON_IP_ADDRESS
+# in deployment-kit.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rtdt.fullname" . }}-aeronim
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.aeronim.selectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "rtdt.aeronim.selectorLabels" . | nindent 4 }}
+{{- end }}

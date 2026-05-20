@@ -1,0 +1,24 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+# ClusterIP service for cluster-internal access to the Kit signaling port.
+# Used by the web pod's wait-for-kit init container and by any in-cluster
+# tooling. Browser-side WebRTC streams reach Kit via hostPort (or whatever
+# external path the operator configures), not through this service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rtdt.fullname" . }}-kit
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.kit.selectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.kit.ports.signaling }}
+      targetPort: {{ .Values.kit.ports.signaling }}
+      protocol: TCP
+      name: signaling
+  selector:
+    {{- include "rtdt.kit.selectorLabels" . | nindent 4 }}

@@ -1,0 +1,3 @@
+[submodule "kit-cae"]
+	path = kit-cae
+	url = https://github.com/NVIDIA-Omniverse/kit-cae.git

@@ -1,0 +1,15 @@
+{
+  "prim_path": "/World/Inference",
+  "requested_outputs": [
+    "nvdb_pressure",
+    "nvdb_velocity",
+    "nvdb_velocity_magnitude"
+  ],
+  "app_state": {
+    "omni:rtwt:app_state:mirrors": "On",
+    "omni:rtwt:app_state:rims": "Standard",
+    "omni:rtwt:app_state:spoiler": "On",
+    "omni:rtwt:app_state:velocity": "75.0"
+  },
+  "created": "2026-04-21T18:12:19.991880+00:00"
+}

@@ -1,0 +1,68 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+{{- include "rtdt.validateMode" . -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "rtdt.fullname" . }}-smoke-test
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command:
+        - /bin/sh
+        - -ec
+      args:
+        - |
+          check_tcp() {
+            name="$1"
+            host="$2"
+            port="$3"
+            attempts="${4:-60}"
+            i=1
+
+            echo "Checking ${name} at ${host}:${port}..."
+            until nc -z "${host}" "${port}"; do
+              if [ "${i}" -ge "${attempts}" ]; then
+                echo "ERROR: ${name} did not accept TCP connections after ${attempts} attempts." >&2
+                exit 1
+              fi
+              i=$((i + 1))
+              sleep 2
+            done
+          }
+
+          check_http() {
+            name="$1"
+            url="$2"
+            attempts="${3:-60}"
+            i=1
+
+            echo "Checking ${name} at ${url}..."
+            until wget -q -T 5 -O /dev/null "${url}"; do
+              if [ "${i}" -ge "${attempts}" ]; then
+                echo "ERROR: ${name} did not return HTTP success after ${attempts} attempts." >&2
+                exit 1
+              fi
+              i=$((i + 1))
+              sleep 2
+            done
+          }
+
+          check_tcp "Kit signaling service" "{{ include "rtdt.fullname" . }}-kit" "{{ .Values.kit.ports.signaling }}"
+          check_tcp "Web service" "{{ include "rtdt.fullname" . }}-web" "{{ .Values.web.service.port }}"
+          {{- if include "rtdt.aeronimEnabled" . }}
+          check_http "AeroNIM readiness endpoint" "http://{{ include "rtdt.fullname" . }}-aeronim:8080/v2/health/ready"
+          {{- end }}
+          echo "Helm smoke test passed."

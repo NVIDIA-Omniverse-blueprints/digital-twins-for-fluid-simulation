@@ -1,0 +1,763 @@
+#usda 1.0
+(
+    """
+    This is the complete stage with post processing pipelines.
+    """
+    customLayerData = {
+        dictionary cameraSettings = {
+            dictionary Front = {
+                double3 position = (50000, 0, 0)
+                double radius = 500
+            }
+            dictionary Perspective = {
+                double3 position = (-663.8959495927804, 472.97203866789346, 371.76596737736367)
+                double3 target = (-0.1544610901771648, 0.9002735107307558, 75.82875983499582)
+            }
+            dictionary Right = {
+                double3 position = (0, -50000, 0)
+                double radius = 500
+            }
+            dictionary Top = {
+                double3 position = (0, 0, 50000)
+                double radius = 500
+            }
+            string boundCamera = "/OmniverseKit_Persp"
+        }
+        dictionary omni_layer = {
+            string authoring_layer = "./BaseCAE.usda"
+        }
+        dictionary renderSettings = {
+        }
+    }
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    subLayers = [
+        @./Base.usda@
+    ]
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+over "World"
+{
+    over "AppState"
+    {
+        rel omni:rtwt:app_state:roi = </World/CAE/BoundingBox_Domain>
+    }
+
+    over "CAE"
+    {
+        def Xform "Probes" (
+            prepend references = @./layers/Probes.usda@</World/Probes>
+            """
+            Add overrides to move the probes to be in front of the car and
+            inside the domain.
+            """
+        )
+        {
+            over "Cylinder0"
+            {
+                double3 xformOp:translate = (-1.6, -0, -0.2)
+            }
+
+            over "Cylinder1"
+            {
+                double3 xformOp:translate = (-1.6, -0, 0)
+            }
+
+            over "Cylinder2"
+            {
+                double3 xformOp:translate = (-1.6, -0, 0.2)
+            }
+
+            over "Cylinder3"
+            {
+                double3 xformOp:translate = (-1.6, -0, 0.4)
+            }
+
+            over "Cylinder4"
+            {
+                double3 xformOp:translate = (-1.6, -0, 0.6)
+            }
+
+            over "Probe0"
+            {
+                double3 xformOp:translate = (-1.5, -0, -0.2)
+            }
+
+            over "Probe1"
+            {
+                double3 xformOp:translate = (-1.5, -0, 0)
+            }
+
+            over "Probe2"
+            {
+                double3 xformOp:translate = (-1.5, -0, 0.2)
+            }
+
+            over "Probe3"
+            {
+                double3 xformOp:translate = (-1.5, -0, 0.4)
+            }
+
+            over "Probe4"
+            {
+                double3 xformOp:translate = (-1.5, -0, 0.6)
+            }
+        }
+
+        def BasisCurves "BoundingBox_Domain"
+        {
+            int[] curveVertexCounts = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+            float3[] extent = [(-1.8, -1.4399999, -0.35999998), (9, 1.4399999, 2.1599998)]
+            point3f[] points = [(-1.8, -1.4399999, -0.35999998), (9, -1.4399999, -0.35999998), (9, -1.4399999, -0.35999998), (9, 1.4399999, -0.35999998), (9, 1.4399999, -0.35999998), (-1.8, 1.4399999, -0.35999998), (-1.8, 1.4399999, -0.35999998), (-1.8, -1.4399999, -0.35999998), (-1.8, -1.4399999, 2.1599998), (9, -1.4399999, 2.1599998), (9, -1.4399999, 2.1599998), (9, 1.4399999, 2.1599998), (9, 1.4399999, 2.1599998), (-1.8, 1.4399999, 2.1599998), (-1.8, 1.4399999, 2.1599998), (-1.8, -1.4399999, 2.1599998), (-1.8, -1.4399999, -0.35999998), (-1.8, -1.4399999, 2.1599998), (9, -1.4399999, -0.35999998), (9, -1.4399999, 2.1599998), (9, 1.4399999, -0.35999998), (9, 1.4399999, 2.1599998), (-1.8, 1.4399999, -0.35999998), (-1.8, 1.4399999, 2.1599998)]
+            uniform token type = "linear"
+            token visibility = "invisible"
+            float[] widths = [0.05728979] (
+                interpolation = "constant"
+            )
+            float3 xformOp:rotateXYZ
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 0)
+            double3 xformOp:translate:pivot = (3.600000023841858, 0, 0.8999999314546585)
+            uniform token[] xformOpOrder = ["xformOp:translate:pivot", "xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale", "!invert!xformOp:translate:pivot"]
+        }
+
+        def Mesh "Faces_CarCFD" (
+            prepend apiSchemas = ["CaeVizOperatorAPI", "CaeVizFacesAPI", "CaeVizDatasetSelectionAPI:source", "CaeVizFieldSelectionAPI:colors", "CaeVizRescaleRangeAPI:colors", "MaterialBindingAPI"]
+        )
+        {
+            rel cae:viz:dataset_selection:source:target = </World/CarCFD>
+            bool cae:viz:operator:enabled = 1
+            uniform token subdivisionScheme = "bilinear"
+            token visibility = "invisible"
+        }
+
+        over "Volume_Prototype" (
+            """
+            We use "over" here since this is only intended as a prototype to use by pressure and velocity specific
+            Volume prims. Avoids having duplicating the setup and keeps the stage clean(ish).
+            """
+            prepend apiSchemas = ["CaeVizOperatorAPI", "CaeVizIndeXVolumeAPI", "CaeVizDatasetVoxelizationAPI:source", "CaeVizDatasetSelectionAPI:source", "CaeVizFieldSelectionAPI:colors", "MaterialBindingAPI", "CaeVizRescaleRangeAPI:colors", "CaeVizConfigureXACShaderAPI:colors"]
+        )
+        {
+            rel cae:viz:configure_xac_shader:colors:attribIdxIncludes = </World/CAE/Volume_Prototype/Material/VolumeShader.inputs:attrib_idx>
+            rel cae:viz:configure_xac_shader:colors:sampleModeIncludes = </World/CAE/Volume_Prototype/Material/VolumeShader.inputs:mode>
+            rel cae:viz:configure_xac_shader:colors:timeCodesIncludes = </World/CAE/Volume_Prototype/Material/VolumeShader.inputs:time_codes>
+            rel cae:viz:configure_xac_shader:colors:voxelSizeIncludes = </World/CAE/Volume_Prototype/Material/VolumeShader.inputs:voxel_size>
+            rel cae:viz:dataset_selection:source:target = </World/InferenceResults>
+            bool cae:viz:operator:enabled = 1
+            rel cae:viz:rescale_range:colors:includes (
+                doc="drop default color map link"
+            )
+            token cae:viz:rescale_range:colors:rescaleMode = "disable" (
+                doc="Disable auto colormap rescaling"
+            )
+            custom rel field:importer = </World/CAE/Volume_Prototype/Importer>
+            rel material:binding = </World/CAE/Volume_Prototype/Material>
+            custom bool nvindex:composite = 0
+            custom token nvindex:type = "vdb"
+            custom bool omni:rtx:skip = 1
+            custom token outputs:volume
+
+            def FieldAsset "Importer"
+            {
+            }
+
+            def Material "Material"
+            {
+                token outputs:nvindex:compute.connect = </World/CAE/Volume_Prototype/Material/DataLoader.outputs:compute>
+                token outputs:nvindex:volume.connect = </World/CAE/Volume_Prototype/Material/VolumeShader.outputs:volume>
+
+                def Shader "DataLoader"
+                {
+                    uniform token info:id = "nv::omni::cae::index.PythonComputeTask"
+                    uniform token info:implementationSource = "id"
+                    bool inputs:enabled = 0
+                    token outputs:compute
+                }
+
+                def Shader "VolumeShader"
+                {
+                    uniform token info:implementationSource = "sourceAsset"
+                    uniform asset info:xac:sourceAsset = @cae/xac/basic.xac@
+                    int2 inputs:attrib_idx = (0, -1) (
+                        customData = {
+                            int "nvindex.param" = 2
+                        }
+                        doc = "Attribute indices: (current, next). Set next to -1 to disable interpolation."
+                    )
+                    # token inputs:colormap.connect = </World/CAE/Volume_Prototype/Material/Colormap.outputs:colormap>
+                    int inputs:mode = 0 (
+                        customData = {
+                            int "nvindex.param" = 1
+                        }
+                        doc = "Specifies the mode (attribute type). 0 is float, 1 is vector (vec3f)."
+                    )
+                    float3 inputs:time_codes = (0, 0, 0) (
+                        customData = {
+                            int "nvindex.param" = 3
+                        }
+                        doc = "Time codes: (current, next, raw) for interpolation."
+                    )
+                    float3 inputs:voxel_size = (1, 1, 1) (
+                        customData = {
+                            int "nvindex.param" = 0
+                        }
+                        doc = "Specifies the voxel size for the volume (if applicable)."
+                    )
+                    token outputs:volume
+                }
+            }
+        }
+
+        def Volume "Volume_VelocityMagnitude" (
+            prepend references = </World/CAE/Volume_Prototype>
+        )
+        {
+            rel cae:viz:field_selection:colors:target = </World/InferenceResults/Velocity>
+            over "Material"
+            {
+                over "DataLoader" (
+                    "This is necessary to ensure we have a override spec for this prim"
+                )
+                {
+                }
+                over "VolumeShader"
+                {
+                    token inputs:colormap.connect = </World/Colormaps/VelocityColormap.outputs:colormap>
+                }
+            }
+        }
+
+        def Volume "Volume_Pressure" (
+            prepend references = </World/CAE/Volume_Prototype>
+        )
+        {
+            rel cae:viz:field_selection:colors:target = </World/InferenceResults/Pressure>
+            over "Material"
+            {
+                over "DataLoader"(
+                    "This is necessary to ensure we have a override spec for this prim"
+                )
+                {
+                }
+                over "VolumeShader"
+                {
+                    token inputs:colormap.connect = </World/Colormaps/PressureColormap.outputs:colormap>
+                }
+            }
+        }
+
+        over "PlanarSlice_Prototype" (
+            prepend apiSchemas = ["RtwtTransformAPI:x", "RtwtTransformAPI:y", "RtwtTransformAPI:z",
+                "CaeVizOperatorAPI", "CaeVizPlanarSliceAPI", "CaeVizDatasetSelectionAPI:source", "CaeVizDatasetVoxelizationAPI:source", "CaeVizDatasetTransformingAPI:self", "CaeVizFieldSelectionAPI:colors", "CaeVizRescaleRangeAPI:colors", "MaterialBindingAPI"]
+        )
+        {
+            prepend rel cae:viz:dataset_selection:source:target = </World/InferenceResults>
+            uniform bool cae:viz:dataset_transforming:self:useGlobalTransform = 1
+            bool cae:viz:operator:enabled = 1
+            rel cae:viz:rescale_range:colors:includes = None
+            uniform token cae:viz:rescale_range:colors:rescaleMode = "disable"
+            rel material:binding = </World/CAE/PlanarSlice_Prototype/Materials/SliceTexture> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
+            float3 xformOp:rotateXYZ
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (3.600000023841858, 0, 0.8999999314546585)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+            def Scope "Materials"
+            {
+                def Material "SliceTexture"
+                {
+                    token outputs:mdl:displacement.connect = </World/CAE/PlanarSlice_Prototype/Materials/SliceTexture/Shader.outputs:out>
+                    token outputs:mdl:surface.connect = </World/CAE/PlanarSlice_Prototype/Materials/SliceTexture/Shader.outputs:out>
+                    token outputs:mdl:volume.connect = </World/CAE/PlanarSlice_Prototype/Materials/SliceTexture/Shader.outputs:out>
+
+                    def Shader "Shader"
+                    {
+                        uniform token info:implementationSource = "sourceAsset"
+                        uniform asset info:mdl:sourceAsset = @cae/mdl/basic.mdl@
+                        uniform token info:mdl:sourceAsset:subIdentifier = "SliceTexture"
+                        float2 inputs:domain = (0, -1)
+                        asset inputs:lut = @cae/colormaps/gist_rainbow.png@
+                        token outputs:out (
+                            renderType = "material"
+                        )
+                    }
+                }
+            }
+        }
+
+
+
+        def Mesh "PlanarSlice_VelocityMagnitude" (
+            prepend references = </World/CAE/PlanarSlice_Prototype>
+        )
+        {
+            rel cae:viz:field_selection:colors:target = </World/InferenceResults/VelocityMagnitude>
+            over "Materials"
+            {
+                over "SliceTexture"
+                {
+                    over "Shader"
+                    {
+                        float2 inputs:domain = (0, 50)
+                        asset inputs:lut =@dynamic://cae_colormap_velocity_colormap@
+                    }
+                }
+            }
+        }
+
+        def Mesh "PlanarSlice_Pressure" (
+            prepend references = </World/CAE/PlanarSlice_Prototype>
+        )
+        {
+            rel cae:viz:field_selection:colors:target = </World/InferenceResults/Pressure>
+            over "Materials"
+            {
+                over "SliceTexture"
+                {
+                    over "Shader"
+                    {
+                        float2 inputs:domain = (-100, 100)
+                        asset inputs:lut =@dynamic://cae_colormap_pressure_colormap@
+                    }
+                }
+            }
+        }
+
+        def BasisCurves "Streamlines" (
+            prepend apiSchemas = ["CaeVizOperatorAPI", "CaeVizStreamlinesAPI", "CaeVizDatasetVoxelizationAPI:source", "CaeVizDatasetSelectionAPI:source", "CaeVizDatasetSelectionAPI:seeds", "CaeVizDatasetTransformingAPI:seeds", "CaeVizFieldSelectionAPI:velocities", "CaeVizFieldSelectionAPI:colors", "CaeVizRescaleRangeAPI:colors", "CaeVizFieldSelectionAPI:widths", "CaeVizFieldMappingAPI:widths", "CaeVizRescaleRangeAPI:widths", "MaterialBindingAPI"]
+        )
+        {
+            uniform token basis = "bspline"
+            rel cae:viz:dataset_selection:seeds:target = [
+                </World/CAE/Probes/Probe0>,
+                </World/CAE/Probes/Probe1>,
+                </World/CAE/Probes/Probe2>,
+                </World/CAE/Probes/Probe3>,
+                </World/CAE/Probes/Probe4>,
+            ]
+            rel cae:viz:dataset_selection:source:target = </World/InferenceResults>
+            rel cae:viz:dataset_voxelization:source:roi = </World/CAE/BoundingBox_Domain>
+            uniform float2 cae:viz:field_mapping:widths:domain = (0, -1)
+            rel cae:viz:field_selection:colors:target = </World/InferenceResults/VelocityMagnitude>
+            uniform token cae:viz:field_selection:velocities:mode = "unchanged"
+            rel cae:viz:field_selection:velocities:target = </World/InferenceResults/Velocity>
+            bool cae:viz:operator:enabled = 1
+            token cae:viz:rescale_range:colors:rescaleMode = "disable" (
+                doc="Disable auto colormap rescaling"
+            )
+            prepend rel cae:viz:rescale_range:colors:enableIncludes = </World/CAE/Streamlines/Materials/AnimatedStreaks/Shader.inputs:enable_coloring>
+            prepend rel cae:viz:rescale_range:colors:includes = [
+                </World/CAE/Streamlines/Materials/ScalarColor/Shader.inputs:domain>,
+                </World/CAE/Streamlines/Materials/AnimatedStreaks/Shader.inputs:domain>,
+            ]
+            prepend rel cae:viz:rescale_range:widths:includes = </World/CAE/Streamlines.cae:viz:field_mapping:widths:domain>
+            uniform token cae:viz:streamlines:direction = "forward"
+            uniform float cae:viz:streamlines:initialStepSize = 0.8
+            uniform int cae:viz:streamlines:maxSteps = 250
+            uniform float cae:viz:streamlines:maxStepSize = 0.8
+            uniform float cae:viz:streamlines:minStepSize = 0.8
+            uniform float cae:viz:streamlines:width = 0.01
+            int[] curveVertexCounts = [4]
+            float3[] extent = [(0, 0, 0), (0.3, 0.05, 0.05)]
+            rel material:binding = </World/CAE/Streamlines/Materials/ScalarColor> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
+            point3f[] points = [(0, 0, 0), (0.1, 0, 0), (0.2, 0, 0), (0.3, 0, 0)]
+            float[] primvars:widths = [0.025, 0.025, 0.025, 0.025] (
+                interpolation = "vertex"
+            )
+            uniform token type = "cubic"
+            # token visibility = "invisible"
+            float[] widths (
+                interpolation = "constant"
+            )
+            uniform token wrap = "pinned"
+
+            def Scope "Materials"
+            {
+                def Material "ScalarColor"
+                {
+                    token outputs:mdl:displacement.connect = </World/CAE/Streamlines/Materials/ScalarColor/Shader.outputs:out>
+                    token outputs:mdl:surface.connect = </World/CAE/Streamlines/Materials/ScalarColor/Shader.outputs:out>
+                    token outputs:mdl:volume.connect = </World/CAE/Streamlines/Materials/ScalarColor/Shader.outputs:out>
+
+                    def Shader "Shader"
+                    {
+                        uniform token info:implementationSource = "sourceAsset"
+                        uniform asset info:mdl:sourceAsset = @cae/mdl/basic.mdl@
+                        uniform token info:mdl:sourceAsset:subIdentifier = "ScalarColor"
+                        float2 inputs:domain = (0, 50)
+                        asset inputs:lut =@dynamic://cae_colormap_velocity_colormap@
+                        token outputs:out (
+                            renderType = "material"
+                        )
+                    }
+                }
+
+                def Material "AnimatedStreaks"
+                {
+                    token outputs:mdl:displacement.connect = </World/CAE/Streamlines/Materials/AnimatedStreaks/Shader.outputs:out>
+                    token outputs:mdl:surface.connect = </World/CAE/Streamlines/Materials/AnimatedStreaks/Shader.outputs:out>
+                    token outputs:mdl:volume.connect = </World/CAE/Streamlines/Materials/AnimatedStreaks/Shader.outputs:out>
+
+                    def Shader "Shader"
+                    {
+                        uniform token info:implementationSource = "sourceAsset"
+                        uniform asset info:mdl:sourceAsset = @cae/mdl/basic.mdl@
+                        uniform token info:mdl:sourceAsset:subIdentifier = "AnimatedDot"
+                        color3f inputs:base_color = (0.02, 0.2, 0.2)
+                        float inputs:dot_intensity = 100
+                        float inputs:dot_size = 0.01
+                        float inputs:emission_intensity = 100000
+                        bool inputs:enable_coloring = 0
+                        asset inputs:lut =@dynamic://cae_colormap_velocity_colormap@
+                        token outputs:out (
+                            renderType = "material"
+                        )
+                    }
+                }
+            }
+        }
+
+        def Scope "FlowSimulation_L0"
+        {
+            def FlowSimulate "flowSimulate"
+            {
+                float densityCellSize = 3.6 (
+                    customData = {
+                        dictionary omni = {
+                            dictionary kit = {
+                                bool locked = 1
+                            }
+                        }
+                    }
+                )
+                custom bool enableHighPrecisionDensity = 0
+                custom bool enableHighPrecisionVelocity = 0
+                int layer = 0
+
+                def FlowAdvectionCombustionParams "advection"
+                {
+                    float buoyancyPerTemp = 0
+                    float burnPerTemp = 1000
+                    float fuelPerBurn = 1
+                    float ignitionTemp = 0
+
+                    def FlowAdvectionChannelParams "velocity"
+                    {
+                        float damping = 0.01
+                        float fade = 1
+                        float secondOrderBlendFactor = 0.5
+                    }
+
+                    def FlowAdvectionChannelParams "divergence"
+                    {
+                        float damping = 0.01
+                        float fade = 1
+                        float secondOrderBlendFactor = 0.5
+                    }
+
+                    def FlowAdvectionChannelParams "temperature"
+                    {
+                    }
+
+                    def FlowAdvectionChannelParams "fuel"
+                    {
+                    }
+
+                    def FlowAdvectionChannelParams "burn"
+                    {
+                    }
+
+                    def FlowAdvectionChannelParams "smoke"
+                    {
+                        float damping = 0.3
+                        float fade = 0.65
+                    }
+                }
+
+                def FlowVorticityParams "vorticity"
+                {
+                }
+
+                def FlowPressureParams "pressure"
+                {
+                }
+
+                def FlowSummaryAllocateParams "summaryAllocate"
+                {
+                }
+
+                def FlowSparseNanoVdbExportParams "nanoVdbExport"
+                {
+                    custom bool interopEnabled = 0
+                }
+            }
+
+            def FlowOffscreen "flowOffscreen"
+            {
+                int layer = 0
+
+                def FlowShadowParams "shadow"
+                {
+                }
+
+                def FlowRayMarchColormapParams "colormap"
+                {
+                    float colorScale = 10
+                    float[] colorScalePoints = [0.5, 1, 1]
+                    uint resolution = 256
+                    float4[] rgbaPoints = [(0.2, 0.3, 0.8, 0.3), (1, 1, 0, 0.3), (0.7, 0.01, 0.14, 1)]
+                    float[] xPoints = [0.0001, 0.5, 1]
+                }
+
+                def FlowDebugVolumeParams "debugVolume"
+                {
+                    custom bool applyPreShadow = 0
+                }
+            }
+
+            def FlowRender "flowRender"
+            {
+                int layer = 0
+
+                def FlowRayMarchParams "rayMarch"
+                {
+                    float attenuation = 3
+                    bool enableBlockWireframe = 0
+
+                    def FlowRayMarchCloudParams "cloud"
+                    {
+                    }
+                }
+
+                def FlowRenderSettingsParams "renderSettings"
+                {
+                }
+            }
+
+            def Xform "BoundaryEmitter_BoundingBox_Domain"
+            {
+                token visibility = "invisible"
+
+                def Cube "Boundary_NegX"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (0.25199997, 3.168, 2.7719998)
+                    double3 xformOp:translate = (-1.9259999439120292, 0, 0.8999999314546585)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+
+                def Cube "Boundary_PosX"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (0.25199997, 3.168, 2.7719998)
+                    double3 xformOp:translate = (9.125999991595744, 0, 0.8999999314546585)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+
+                def Cube "Boundary_NegY"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (11.88, 0.25199997, 2.7719998)
+                    double3 xformOp:translate = (3.600000023841858, -1.5659999296069145, 0.8999999314546585)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+
+                def Cube "Boundary_PosY"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (11.88, 0.25199997, 2.7719998)
+                    double3 xformOp:translate = (3.600000023841858, 1.5659999296069145, 0.8999999314546585)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+
+                def Cube "Boundary_NegZ"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (11.88, 3.168, 0.25199997)
+                    double3 xformOp:translate = (3.600000023841858, 0, -0.48599997609853746)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+
+                def Cube "Boundary_PosZ"
+                {
+                    double size = 1
+                    float3 xformOp:scale = (11.88, 3.168, 0.25199997)
+                    double3 xformOp:translate = (3.600000023841858, 0, 2.2859998390078546)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+                    def FlowEmitterBox "EmitterBox"
+                    {
+                        float allocationScale = 0
+                        bool applyPostPressure = 1
+                        float burn = 0
+                        float coupleRateBurn = 1200
+                        float coupleRateDivergence = 1200
+                        float coupleRateFuel = 1200
+                        float coupleRateSmoke = 1200
+                        float coupleRateTemperature = 1200
+                        float coupleRateVelocity = 1200
+                        float divergence = 0
+                        float fuel = 0
+                        float3 halfSize = (0.5, 0.5, 0.5)
+                        int layer = 0
+                        float smoke = 0
+                        float temperature = 0
+                        float3 velocity = (0, 0, 0)
+                    }
+                }
+            }
+
+            def FlowEmitterNanoVdb "DatasetInjector_Domain" (
+                prepend apiSchemas = ["CaeVizOperatorAPI", "CaeVizDatasetSelectionAPI:source", "CaeVizConfigureFlowEnvironmentAPI:source", "CaeVizDatasetVoxelizationAPI:source", "CaeVizFieldSelectionAPI:velocities", "CaeVizFieldSelectionAPI:temperatures", "CaeVizRescaleRangeAPI:temperatures"]
+            )
+            {
+                float allocationScale = 0
+                bool applyPostPressure = 1
+                float burn = 0
+                float burnScale = 1
+                prepend rel cae:viz:configure_flow_environment:source:densityCellSizeIncludes = </World/CAE/FlowSimulation_L0/flowSimulate.densityCellSize>
+                rel cae:viz:dataset_selection:source:target = </World/InferenceResults>
+                uniform int cae:viz:dataset_voxelization:source:inflateBounds = 10
+                uniform int cae:viz:dataset_voxelization:source:maxResolution = 512
+                rel cae:viz:field_selection:velocities:target = </World/InferenceResults/Velocity>
+                bool cae:viz:operator:enabled = 1
+                prepend rel cae:viz:rescale_range:temperatures:maxIncludes = </World/CAE/FlowSimulation_L0/flowRender/rayMarch.colormapXMax>
+                prepend rel cae:viz:rescale_range:temperatures:minIncludes = </World/CAE/FlowSimulation_L0/flowRender/rayMarch.colormapXMin>
+                float coupleRateBurn = 0
+                float coupleRateDivergence = 0
+                float coupleRateFuel = 0
+                float coupleRateSmoke = 0
+                float coupleRateTemperature = 0
+                float coupleRateVelocity = 0
+                float divergence = 0
+                float divergenceScale = 1
+                float fuel = 0
+                float fuelScale = 1
+                int layer = 0
+                float smoke = 0
+                float smokeScale = 1
+                float temperature = 0
+                float temperatureScale = 1
+                float3 velocity = (0, 0, 0)
+                float velocityScale = 19 (
+                    customData = {
+                        dictionary omni = {
+                            dictionary kit = {
+                                bool locked = 1
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}

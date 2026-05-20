@@ -1,0 +1,14 @@
+# Helm values overlays frequently contain secrets (NGC keys, registry creds,
+# TLS material). Keep any "local" or "secret" variant out of git by convention.
+values.local.yaml
+values.*.local.yaml
+*.secret.yaml
+
+# `helm template --set <secret>=...` and `helm install --dry-run -o yaml`
+# render the secret value straight into the output. Never commit rendered
+# manifests produced from a local workflow.
+rendered*.yaml
+*.rendered.yaml
+
+# Ignore tarballs produced by `helm package` locally.
+*.tgz

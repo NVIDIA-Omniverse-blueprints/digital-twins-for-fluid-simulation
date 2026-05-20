@@ -1,0 +1,78 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rtdt.fullname" . }}-web
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.web.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rtdt.web.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rtdt.labels" . | nindent 8 }}
+        {{- include "rtdt.web.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.web.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Wait for Kit's signaling port to accept TCP connections. Using `nc -z`
+        # instead of curl is deliberate: the kit app doesn't serve an HTTP 200
+        # on `/`, so the proto's curl-based probe looped forever even after the
+        # app was fully up (HPE feedback, Feb 2026). TCP accept is the right
+        # layer, which is what the web app itself will use to connect.
+        - name: wait-for-kit
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Kit signaling on {{ include "rtdt.fullname" . }}-kit:{{ .Values.kit.ports.signaling }}..."
+              until nc -z {{ include "rtdt.fullname" . }}-kit {{ .Values.kit.ports.signaling }}; do
+                echo "  Kit not accepting connections yet, retrying in 10s..."
+                sleep 10
+              done
+              echo "Kit is reachable."
+      containers:
+        - name: web
+          image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5173
+              protocol: TCP
+          # tcpSocket probes on 5173. Trame binds the port early but does not
+          # guarantee a meaningful HTTP response until the WebRTC stream links
+          # up. The honest signal here is "is the socket accepting?"
+          readinessProbe:
+            tcpSocket:
+              port: 5173
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 5173
+            periodSeconds: 30
+            failureThreshold: 3
+      {{- with .Values.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

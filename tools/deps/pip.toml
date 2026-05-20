@@ -1,0 +1,10 @@
+[[dependency]]
+python = "../../_build/target-deps/python"
+packages = [
+    "tritonclient[http]==2.60.0",
+]
+target = "../../_build/target-deps/pip_prebundle" # This folder will be linked into 'example.mixed_ext' extension (see premake file)
+platforms = ["*"]
+download_only = false
+append_to_install_folder = true
+gather_licenses_path = "../../_build/PACKAGE-LICENSES/PIP-prebundled-LICENSES.txt"

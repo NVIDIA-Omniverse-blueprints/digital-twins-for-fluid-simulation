@@ -1,0 +1,66 @@
+name: "rtwt"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "USD_LAYER"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "PRIM_PATH"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "BATCH_SIZE"
+    data_type: TYPE_INT32
+    dims: [1]
+  },
+  {
+    name: "STENCIL_SIZE"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+
+output [
+  {
+    name: "nvdb_velocity"
+    data_type: TYPE_UINT8
+    dims: [-1]
+  },
+  {
+    name: "nvdb_pressure"
+    data_type: TYPE_UINT8
+    dims: [-1]
+  },
+  {
+    name: "nvdb_velocity_magnitude"
+    data_type: TYPE_UINT8
+    dims: [-1]
+  },
+  {
+    name: "EXTENT_MIN"
+    data_type: TYPE_INT32
+    dims: [3]
+  },
+  {
+    name: "EXTENT_MAX"
+    data_type: TYPE_INT32
+    dims: [3]
+  },
+  {
+    name: "ERROR_MESSAGE"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+  }
+]

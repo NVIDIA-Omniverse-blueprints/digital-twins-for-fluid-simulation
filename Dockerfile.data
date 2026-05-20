@@ -1,0 +1,41 @@
+# =============================================================================
+# Companion "data" image for the Digital Twins for Fluid Simulation blueprint.
+#
+# Ships runtime data used by both Kubernetes profiles:
+#   - Kit expects data at /app/rtwt/data and /app/rtwt/stages.
+#   - AeroNIM expects data at /opt/data and /opt/stages.
+# Includes USD stages, car geometry (.ply), and the pre-baked inference cache
+# (.npz + .json sidecars for the lite profile). Intended to be staged into
+# emptyDir volumes at pod start by Kubernetes initContainers.
+#
+# In docker compose these paths are bind-mounted from the host (./data, ./stages)
+# so the compose workflow does not need this image.
+#
+# Build:
+#   docker build -f Dockerfile.data -t rtdt-data:latest .
+# Push:
+#   docker tag rtdt-data:latest  <your-registry>/rtdt-data:<tag>
+#   docker push <your-registry>/rtdt-data:<tag>
+# =============================================================================
+
+FROM busybox:1.36
+
+# Layout inside the image:
+#   /payload/data/    mirrors the repo's data/ directory (cache, low_res, ...)
+#   /payload/stages/  mirrors the repo's stages/ directory (USD files)
+# The kit initContainer copies these into the shared emptyDir mounted at
+# /app/rtwt/ in the kit container.
+COPY data    /payload/data
+COPY stages  /payload/stages
+
+# Fail the build if anyone accidentally ships Git LFS pointer stubs instead of
+# the real cache payloads. A stub is a short text file starting with
+# "version https://git-lfs.github.com/spec/v1". Real .npz/.ply files do not.
+RUN set -eu; \
+    for f in $(find /payload -type f \( -name '*.npz' -o -name '*.ply' \)); do \
+        if head -c 64 "$f" | grep -q 'git-lfs.github.com/spec'; then \
+            echo "ERROR: $f is a Git LFS pointer stub. Run 'git lfs pull' and rebuild." >&2; \
+            exit 1; \
+        fi; \
+    done; \
+    echo "LFS content verification passed."

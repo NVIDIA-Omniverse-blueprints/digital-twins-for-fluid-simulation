@@ -1,0 +1,6 @@
+# Docker BuildKit picks this file up when building with `-f Dockerfile.data`.
+# The data image only needs the data and stages directories; everything else
+# in the repo is noise for this build.
+*
+!data
+!stages

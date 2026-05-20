@@ -1,0 +1,231 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary cameraSettings = {
+            dictionary Front = {
+                double3 position = (50000, 0, 0)
+                double radius = 500
+            }
+            dictionary Perspective = {
+                double3 position = (-663.8959495927804, 472.97203866789346, 371.76596737736367)
+                double3 target = (-0.1544932028788253, 0.9002963501947079, 75.82865137823194)
+            }
+            dictionary Right = {
+                double3 position = (0, -50000, 0)
+                double radius = 500
+            }
+            dictionary Top = {
+                double3 position = (0, 0, 50000)
+                double radius = 500
+            }
+            string boundCamera = "/OmniverseKit_Persp"
+        }
+    }
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+    """
+    This is the base stage where we setup the entire scene
+    without any post processing operator prims.
+    """
+)
+
+def Xform "World"
+{
+    def Prim "AppState" (
+        prepend apiSchemas = ["RtwtInferenceAppStateAPI",
+                              "RtwtVizAppStateAPI",
+                              "CaeVizOperatorAPI"]
+    )
+    {
+        bool cae:viz:operator:enabled = 1
+        uniform token omni:rtwt:app_state:spoiler = "On"
+        uniform token omni:rtwt:app_state:rims = "Standard"
+        uniform token omni:rtwt:app_state:mirrors = "On"
+        uniform float omni:rtwt:app_state:velocity = 25.0
+        uniform bool omni:rtwt:app_state:animatedStreaks = 0
+        uniform bool omni:rtwt:app_state:playAnimation = 0
+        uniform int omni:rtwt:app_state:sliderValue = 0
+        uniform token omni:rtwt:app_state:sliceDirection = "X"
+        uniform token omni:rtwt:app_state:vizField = "VelocityMagnitude"
+        uniform token omni:rtwt:app_state:vizMode = "Streamlines"
+        rel omni:rtwt:app_state:roi
+    }
+
+    def Scope "Cameras" (
+        payload = @./layers/Cameras.usda@</World/Cameras>
+    )
+    {
+    }
+
+    def Xform "WindTunnel" (
+        """
+            The wind tunnel.
+        """
+        payload = @./layers/WindTunnel/windTunnelEnv.usd@
+    )
+    {
+        double3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def "CarHero" (
+        """
+            The payload for the Hero (aka high quality visual display asset) Car model.
+            The xform attributes are adjusted to place the car model in the World / Wind Tunnel
+            as needed.
+        """
+        payload = @./layers/CarHero.usda@</World/CarHero>
+        variants = {
+            # string Ride_Height = "High"
+            string Spoiler = "On"
+            string Mirrors = "On"
+            string Rims = "Standard"
+        }
+
+    )
+    {
+        double3 xformOp:rotateXYZ = (90, 0, 0) (
+            "Rotation applied to match the wind tunnel orientation."
+        )
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 250, 0) (
+            "Translate the car to move it to the center of the plate in the Wind Tunnel."
+        )
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def "CarCFD" (
+        """
+        This points to the PLYs (or surface geometry) files that are used for the inference.
+        This is helpful is positioning the inference results in the Wind Tunnel.
+        """
+        prepend references = @./layers/CarCFD.usda@</World/CarCFD>
+        variants = {
+            string Ride_Height = "High"
+            string Spoiler = "On"
+            string Mirrors = "On"
+            string Rims = "Standard"
+        }
+    )
+    {
+        double3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+
+    def CaeDataSet "Domain" (
+        """
+        This is the domain used for inferencing.
+        """
+        prepend apiSchemas = ["CaeVtkImageDataAPI"]
+        variants = {
+            string Refinement = "Approx_2M"
+        }
+        prepend variantSets = "Refinement"
+    )
+    {
+        variantSet "Refinement" = {
+            "Approx_2M" {
+                uniform float3 cae:vtk:origin = (0, 0, 0)
+                uniform float3 cae:vtk:spacing = (0.036, 0.036, 0.036)
+                uniform int3 cae:vtk:minExtent = (-50, -40, -10)
+                uniform int3 cae:vtk:maxExtent = (250, 40, 60)
+            }
+            "Approx_14M" {
+                uniform float3 cae:vtk:origin = (0, 0, 0)
+                uniform float3 cae:vtk:spacing = (0.018, 0.018, 0.018)
+                uniform int3 cae:vtk:minExtent = (-100, -80, -20)
+                uniform int3 cae:vtk:maxExtent = (500, 80, 120)
+            }
+            "Approx_108M" {
+                uniform float3 cae:vtk:origin = (0, 0, 0)
+                uniform float3 cae:vtk:spacing = (0.009, 0.009, 0.009)
+                uniform int3 cae:vtk:minExtent = (-200, -160, -40)
+                uniform int3 cae:vtk:maxExtent = (1000, 160, 240)
+            }
+        }
+    }
+
+    def Prim "Inference" (
+        prepend apiSchemas = ["RtwtInferenceAPI",
+                              "RtwtInferenceCacheAPI",
+                              "CaeVizOperatorAPI",
+                              "CaeVizDatasetSelectionAPI:domain",
+                              "CaeVizDatasetSelectionAPI:model",
+                              "RtwtResultFieldSelectionAPI:nvdb_velocity",
+                              "RtwtResultFieldSelectionAPI:nvdb_velocity_magnitude",
+                              "RtwtResultFieldSelectionAPI:nvdb_pressure"
+                            ]
+    )
+    {
+        rel cae:viz:dataset_selection:domain:target = </World/Domain>
+        rel cae:viz:dataset_selection:model:target = </World/CarCFD>
+        uniform int omni:rtwt:inference:velocity = 25.0
+        bool cae:viz:operator:enabled = 1
+
+        rel omni:rtwt:result_field_selection:nvdb_velocity:target = </World/InferenceResults/Velocity>
+        rel omni:rtwt:result_field_selection:nvdb_velocity_magnitude:target = </World/InferenceResults/VelocityMagnitude>
+        rel omni:rtwt:result_field_selection:nvdb_pressure:target = </World/InferenceResults/Pressure>
+
+    }
+
+    def "InferenceResults" (
+        prepend references = </World/Domain>
+    )
+    {
+        rel field:Velocity = </World/InferenceResults/Velocity>
+        rel field:VelocityMagnitude = </World/InferenceResults/VelocityMagnitude>
+        rel field:Pressure = </World/InferenceResults/Pressure>
+
+        def CaeNumPyFieldArray "Velocity" (
+            prepend apiSchemas = ["RtwtFieldArrayAPI"]
+        )
+        {
+            uniform token fieldAssociation = "vertex"
+            string arrayName = "velocity"
+        }
+
+        def CaeNumPyFieldArray "Pressure" (
+            prepend apiSchemas = ["RtwtFieldArrayAPI"]
+        )
+        {
+            string arrayName = "pressure"
+            uniform token fieldAssociation = "vertex"
+        }
+
+        def CaeNumPyFieldArray "VelocityMagnitude" (
+            prepend apiSchemas = ["RtwtFieldArrayAPI"]
+        )
+        {
+            string arrayName = "velocity_magnitude"
+            uniform token fieldAssociation = "vertex"
+        }
+    }
+
+    def "Colormaps" (
+        prepend references = @./layers/Colormaps.usda@
+    )
+    {
+    }
+
+    def Xform "CAE" (
+        """
+        This the anchor prim for all post-processing prims. Adjust the Xform attributes
+        to ensure all the viz shows up at correct location in the Wind Tunnel, aligned
+        with the Car model (the visual model).
+        """
+    )
+    {
+        double3 xformOp:rotateXYZ = (0, 0, -90)
+        double3 xformOp:scale = (100, 100, 100)
+        double3 xformOp:translate = (0, 250, 32)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+    }
+}

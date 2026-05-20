@@ -1,0 +1,38 @@
+mdl 1.6;
+
+using m_mdl = "mdl";
+
+import ::state::normal;
+import ..::Templates::OmniGlass::*;
+import ::base::mono_mode;
+import ::tex::gamma_mode;
+
+export material Glass_Inner_Light_Clear_01(*)
+ = Templates::OmniGlass::OmniGlass(
+    absorption_coeff: color(0.f, 0.f, 0.f),
+    use_glass_color_texture: false,
+    glass_color: color(1.f, 0.999989986f, 0.999989986f),
+    glass_color_texture: texture_2d(),
+    frosting_roughness: 0.f,
+    glass_ior: 1.49100006f,
+    thin_walled: false,
+    depth: 0.00100000005f,
+    roughness_texture_influence: 1.f,
+    roughness_texture: texture_2d(),
+    reflection_color_texture: texture_2d(),
+    reflection_color: color(1.f, 1.f, 1.f),
+    normal_map_texture: texture_2d("../../Surfacing/ov_glass_normals/ov_glass_facets_01_normal.jpg", ::tex::gamma_linear),
+    normal_map_strength: 1.f,
+    flip_tangent_u: true,
+    flip_tangent_v: false,
+    enable_opacity: false,
+    cutout_opacity: 1.f,
+    cutout_opacity_texture: texture_2d(),
+    cutout_opacity_mono_source: base::mono_alpha,
+    opacity_threshold: 0.f,
+    project_uvw: false,
+    world_or_object: false,
+    uv_space_index: 0,
+    texture_translate: float2(0.f),
+    texture_rotate: 0.f,
+    texture_scale: float2(1.f));

@@ -1,0 +1,23 @@
+<project toolsVersion="5.0">
+  <!-- Only edit this file to pull kit depedencies. -->
+  <!-- Put all extension-specific dependencies in `ext-deps.packman.xml`. -->
+  <!-- This file contains shared Kit SDK dependencies used by most kit extensions. -->
+
+  <!-- Import Kit SDK all-deps xml file to steal some deps from it: -->
+  <import path="../../_build/${platform_target}/${config}/kit/dev/all-deps.packman.xml">
+    <filter include="python" />
+    <filter include="premake" />
+  </import>
+
+  <dependency name="python" linkPath="../../_build/target-deps/python" />
+  <dependency name="premake" linkPath="../../_build/host-deps/premake" />
+
+  <!-- link to Kit-CAE build to make it easy for this app to locate all the apps and extensions -->
+  <dependency name="kit-cae-apps" linkPath="../../_build/${platform_target}/${config}/kit-cae/apps">
+    <source path="${root}/kit-cae/_build/${platform_target}/${config}/apps" />
+  </dependency>
+
+  <dependency name="kit-cae-exts" linkPath="../../_build/${platform_target}/${config}/kit-cae/exts">
+    <source path="${root}/kit-cae/_build/${platform_target}/${config}/exts" />
+  </dependency>
+</project>

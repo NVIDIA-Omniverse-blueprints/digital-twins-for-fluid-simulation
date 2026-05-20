@@ -1,0 +1,210 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+{{- include "rtdt.validateMode" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rtdt.fullname" . }}-kit
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.kit.selectorLabels" . | nindent 4 }}
+spec:
+  # Kit requests a GPU and binds WebRTC host ports. Recreate avoids rollout
+  # deadlocks from a surge pod that cannot share those resources.
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "rtdt.kit.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rtdt.labels" . | nindent 8 }}
+        {{- include "rtdt.kit.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- /* Merge pull secrets from both values keys. The kit pod runs the
+             kit image (main container) and the data image (init container);
+             a pod-level imagePullSecrets list applies to both. Duplicate names
+             are harmless. */}}
+      {{- $pullSecrets := concat .Values.kit.imagePullSecrets .Values.data.imagePullSecrets }}
+      {{- if $pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml $pullSecrets | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Stage runtime data (USD stages, car geometry, pre-baked inference
+        # cache) into the shared `rtwt-data` emptyDir. The kit container then
+        # mounts the emptyDir at /app/rtwt/, matching the path layout the kit
+        # app's extension settings expect (see source/apps/omni.rtwt.kit).
+        #
+        # docker compose uses host bind mounts for the equivalent paths; this
+        # initContainer is the Kubernetes substitute.
+        - name: stage-data
+          image: "{{ .Values.data.image.repository }}:{{ .Values.data.image.tag }}"
+          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              cp -R /payload/data   /stage/
+              cp -R /payload/stages /stage/
+          volumeMounts:
+            - name: rtwt-data
+              mountPath: /stage
+        {{- if include "rtdt.aeronimEnabled" . }}
+        # Hold kit startup until AeroNIM's Triton HTTP endpoint answers
+        # /v2/health/ready. `nc -z` is not enough here because Triton opens the
+        # socket well before it finishes loading the model, so we use a real
+        # HTTP probe to match aeronim's own readiness check.
+        - name: wait-for-aeronim
+          image: curlimages/curl:8.5.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Waiting for AeroNIM /v2/health/ready..."
+              until curl -sf --max-time 5 http://{{ include "rtdt.fullname" . }}-aeronim:8080/v2/health/ready > /dev/null; do
+                echo "  AeroNIM not ready yet, retrying in 10s..."
+                sleep 10
+              done
+              echo "AeroNIM is ready."
+        {{- end }}
+      containers:
+        - name: kit
+          image: "{{ .Values.kit.image.repository }}:{{ .Values.kit.image.tag }}"
+          imagePullPolicy: {{ .Values.kit.image.pullPolicy }}
+          {{- if .Values.kit.securityContext.privileged }}
+          securityContext:
+            privileged: true
+          {{- end }}
+          ports:
+            - name: signaling
+              containerPort: {{ .Values.kit.ports.signaling }}
+              protocol: TCP
+              {{- if .Values.kit.hostPorts.enabled }}
+              hostPort: {{ .Values.kit.ports.signaling }}
+              {{- end }}
+            - name: media
+              containerPort: {{ .Values.kit.ports.media }}
+              protocol: UDP
+              {{- if .Values.kit.hostPorts.enabled }}
+              hostPort: {{ .Values.kit.ports.media }}
+              {{- end }}
+            {{- $hostPortsEnabled := .Values.kit.hostPorts.enabled }}
+            {{- range $port := untilStep (int .Values.kit.ports.webrtcStreaming.start) (int (add1 .Values.kit.ports.webrtcStreaming.end)) 1 }}
+            - name: wrtc-s-t-{{ $port }}
+              containerPort: {{ $port }}
+              protocol: TCP
+              {{- if $hostPortsEnabled }}
+              hostPort: {{ $port }}
+              {{- end }}
+            - name: wrtc-s-u-{{ $port }}
+              containerPort: {{ $port }}
+              protocol: UDP
+              {{- if $hostPortsEnabled }}
+              hostPort: {{ $port }}
+              {{- end }}
+            {{- end }}
+            {{- range $port := untilStep (int .Values.kit.ports.webrtcData.start) (int (add1 .Values.kit.ports.webrtcData.end)) 1 }}
+            - name: wrtc-d-t-{{ $port }}
+              containerPort: {{ $port }}
+              protocol: TCP
+              {{- if $hostPortsEnabled }}
+              hostPort: {{ $port }}
+              {{- end }}
+            - name: wrtc-d-u-{{ $port }}
+              containerPort: {{ $port }}
+              protocol: UDP
+              {{- if $hostPortsEnabled }}
+              hostPort: {{ $port }}
+              {{- end }}
+            {{- end }}
+          env:
+            - name: KIT_APP
+              value: {{ .Values.kit.env.kitApp | quote }}
+            - name: NIM_TRITON_IP_ADDRESS
+              value: {{ include "rtdt.fullname" . }}-aeronim
+            - name: NIM_TRITON_HTTP_PORT
+              value: "8080"
+            - name: SenderTimeout
+              value: {{ .Values.kit.env.senderTimeout | quote }}
+            {{- if include "rtdt.offlineMode" . }}
+            - name: RTWT_OFFLINE_MODE
+              value: "true"
+            {{- end }}
+            {{- if include "rtdt.aeronimEnabled" . }}
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rtdt.ngcApiSecretName" . }}
+                  key: NGC_API_KEY
+            {{- end }}
+            {{- with .Values.kit.env.omniUser }}
+            - name: OMNI_USER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.kit.env.omniPass }}
+            - name: OMNI_PASS
+              value: {{ . | quote }}
+            {{- end }}
+          {{- with .Values.kit.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: ov-cache
+              mountPath: /home/ubuntu/.cache/ov
+            - name: ov-local-share
+              mountPath: /home/ubuntu/.local/share/ov/
+            - name: rtwt-data
+              mountPath: /app/rtwt
+          # TCP-level probes match what the kit app actually serves. The proto
+          # used an HTTP GET on /, which never returns 200 and caused init
+          # containers downstream to loop forever (HPE feedback, Feb 2026).
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.kit.ports.signaling }}
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.kit.ports.signaling }}
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: ov-cache
+          {{- if .Values.kit.persistence.ovCache.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rtdt.fullname" . }}-ov-cache
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: ov-local-share
+          {{- if .Values.kit.persistence.ovLocalShare.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rtdt.fullname" . }}-ov-local-share
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        # rtwt-data is always emptyDir, because the data image (staged in by the
+        # stage-data init container) is the durable source of truth.
+        - name: rtwt-data
+          emptyDir: {}
+      {{- with .Values.kit.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kit.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kit.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

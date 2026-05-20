@@ -1,0 +1,34 @@
+# =============================================================================
+# Dockerfile for the Aeronim NIM inference service.
+#
+# Extends the NVIDIA Domino Automotive Aero NIM base image with:
+#   - Extra Python dependencies (aeronim/requirements.txt)
+#   - The DAV shared library package from the kit-cae extension tree
+#   - The custom `rtwt` Triton model repository used by the Omniverse extension
+#
+# The base image already ships the bundled Triton model repositories
+# (`model`, `controller`, etc.).  This image overlays only `rtwt` on top.
+#
+# Required environment variables (supply via compose.yml or docker run -e):
+#   NGC_API_KEY          — NGC credential for NIM model downloads
+#   CUDA_VISIBLE_DEVICES — GPU(s) to expose to the container
+# =============================================================================
+FROM nvcr.io/nim/nvidia/domino-automotive-aero:2.1.0-41313772
+USER root
+
+# Install additional Python packages on top of those bundled in the base image.
+# Pinned to pypi.org to avoid accidental resolution against any internal index.
+COPY aeronim/requirements.txt /tmp/requirements.txt
+RUN pip install --index-url https://pypi.org/simple -r /tmp/requirements.txt
+
+# Expose the DAV shared-library package so it is importable by the NIM server.
+# Match the compose bind mount: the Python package itself lands at
+# /opt/python_packages/dav, with /opt/python_packages on PYTHONPATH.
+COPY kit-cae/source/extensions/omni.cae.dav_libs/dav /opt/python_packages/dav
+
+ENV PYTHONPATH="/opt/python_packages:${PYTHONPATH}"
+
+# Overlay the custom `rtwt` Triton model repository.
+# We intentionally rely on the base NIM image's bundled Triton models
+# (`model`, `controller`, etc.) and only add what is specific to this project.
+COPY aeronim/rtwt /opt/triton/rtwt

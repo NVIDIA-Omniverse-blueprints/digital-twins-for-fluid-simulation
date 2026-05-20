@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+version = "1.0.0"
+title = "RTWT Inference"
+description = "Extension for real-time wind tunnel surrogate model inference."
+readme  = "docs/README.md"
+category = "internal"
+keywords = ["kit", "rtwt", "inference", "surrogate"]
+changelog = "docs/CHANGELOG.md"
+icon = "data/icon.png"
+
+[settings]
+# Triton Inference Server HTTP endpoint (host:port).
+exts."omni.rtwt.inference".triton_http_url = "localhost:8080"
+
+# Request timeout in seconds.
+exts."omni.rtwt.inference".triton_timeout_s = 600
+
+# Number of points per batch sent to the model.
+exts."omni.rtwt.inference".triton_batch_size = 128000
+
+# Stencil size used by the model.
+exts."omni.rtwt.inference".triton_stencil_size = 1
+
+# Offline mode: read/write results to an on-disk cache, keyed by the same
+# SHA256 used for in-memory caching. When true, Triton is only contacted
+# on a cache miss (and only if generate_if_missing is true).
+exts."omni.rtwt.inference".offline_mode = false
+
+# When offline_mode=true and this is false, a cache miss is a hard failure
+# and Triton is never contacted.
+exts."omni.rtwt.inference".generate_if_missing = true
+
+# Directory for offline cache files. No default — operator must set this
+# when offline_mode=true. Tokens (e.g. ${data}) are resolved via carb.
+exts."omni.rtwt.inference".offline_cache_dir = ""
+
+[dependencies]
+"omni.usd" = {}
+"omni.cae.viz" = {}
+"omni.rtwt.delegate" = {}
+"omni.rtwt.pip_prebundle" = {}
+
+[[python.module]]
+name = "omni.rtwt.inference"

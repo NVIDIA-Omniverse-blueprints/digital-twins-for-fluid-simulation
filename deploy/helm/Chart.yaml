@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+apiVersion: v2
+name: rtdt-fluid-sim
+description: NVIDIA Digital Twins for Fluid Simulation Blueprint
+type: application
+version: 0.1.0
+appVersion: "2026.05"

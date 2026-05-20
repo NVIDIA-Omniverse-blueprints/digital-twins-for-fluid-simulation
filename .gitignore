@@ -1,10 +1,17 @@
 *.etl
 *.etli
+*.swp
 .env
 web-app/app
-*.swp
-
-# we don't track kit-cae;
-kit-cae/
 logs/
 
+# Python
+__pycache__/
+*.py[cod]
+
+# ignore all build artifacts
+/_*
+
+# Node
+kit-streamer/node_modules/
+trame-app/static/kit-streamer.iife.js

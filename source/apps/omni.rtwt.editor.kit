@@ -1,0 +1,153 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+title = "RTWT Editor"
+version = "2025.05"
+keywords = [ "app" ]
+
+[dependencies]
+"omni.rtwt" = {}
+
+# this is a custom setting used in our app setup to choose the Layout
+[settings.app.layout]
+name = "none"
+
+[settings.app.window]
+title = "RTWT Editor"
+
+[settings.persistent]
+app.stage.upAxis = "Z"
+
+[settings.app.exts]
+# This list is a collection of relative paths from application to folders where
+# extensions and dependencies are located.
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache",
+
+    # Kit-CAE
+    "${app}/../kit-cae/exts",
+    "${app}/../kit-cae/apps",
+
+    # For repo_precache_exts (this that happens before premake.lua,
+    # we have to pass the path directly from the build dir.
+    "_build/${platform}/${config}/kit-cae/exts",
+    "_build/${platform}/${config}/kit-cae/apps",
+]
+
+[settings.app.extensions]
+fsWatcherEnabled = true
+
+# Skip checking supported platform/config when building
+supportedTargets.platform = []
+
+"omni.kit.viewport.navigation.camera_manipulator".defaultOperation = "orbit" # Orbit ON by default
+"omni.ui".Window.enableDetach = false
+
+"omni.kit.window.content_browser".show_download_menuitem = false
+
+# Do not allow connections to new servers when running on OVC.
+"omni.kit.window.filepicker".show_add_new_connection = false
+
+# Do not display the buttons to open log files when running on OVC
+"omni.kit.window.console".showOpenLogButtons = false
+
+# Disable custom cursors.
+"omni.kit.window.cursor".disabled = true
+
+# Do not show the local filesystem in the content browser
+"omni.kit.window.content_browser".show_only_collections = ["bookmarks", "omniverse", "",]
+
+# Do not show the local file system in the filepicker.
+"omni.kit.window.filepicker".show_only_collections = ["bookmarks", "omniverse", "",]
+
+[settings.log]
+# Sets the relative path to where the log file for this application is stored.
+file = "logs/omni.rtwt.editor.log"
+fileLogLevel = "info" # more verbose logging
+enableStandardStreamOutput = true
+outputStreamLevel = "warning"
+
+[settings]
+rtx.occlusionDetection.enabled=true
+rtx.aovConverter.disocclusionScale = 1200000
+rtx.disocclusionDetection.conservativeSurfaceDetection=false
+rtx.disocclusionDetection.depthThreshold = 0.085
+
+# Do not check if the GPU drivers are verified
+rtx.verifyDriverVersion.enabled = false
+rtx.post.aa.op = 3
+rtx.post.dlss.execMode = 1  # DLSS mode: balanced
+
+# Disable the realm.timeout.
+realm.timeout = 0
+privacy.userId = "${USER_ID}"
+rendergraph.maxFramesInFlight = 2 # Reduce click-to-photon
+renderer.debug.aftermath.enabled = true
+plugins."carb.tasking.plugin".threadCount = 16
+
+
+########################################################################################################################
+# BEGIN GENERATED PART (Remove from 'BEGIN' to 'END' to regenerate)
+########################################################################################################################
+
+# Kit SDK Version: 109.0.4+production.281012.89b27537.gl
+
+# Version lock for all dependencies:
+[settings.app.exts]
+enabled = [
+	"omni.anim.curve.core-1.5.3",
+	"omni.anim.window.timeline-109.0.2",
+	"omni.convexdecomposition-109.0.10",
+	"omni.flowusd-109.0.2",
+	"omni.flowusd.bundle-1.2.0",
+	"omni.flowusd.ui-109.0.0",
+	"omni.graph.action-2.0.0",
+	"omni.graph.action_nodes-2.0.3",
+	"omni.graph.action_nodes_core-2.0.1",
+	"omni.graph.nodes-2.1.6",
+	"omni.graph.nodes_core-2.0.3",
+	"omni.graph.scriptnode-2.1.2",
+	"omni.graph.ui_nodes-2.0.6",
+	"omni.kit.asset_converter-5.1.1",
+	"omni.kit.browser.core-2.3.17",
+	"omni.kit.browser.folder.core-1.12.1",
+	"omni.kit.debug.settings-1.0.2",
+	"omni.kit.dev.utilities.bundle-0.2.1",
+	"omni.kit.developer.bundle-0.2.0",
+	"omni.kit.livestream.messaging-1.2.1",
+	"omni.kit.tool.asset_importer-5.1.3",
+	"omni.kit.viewport.menubar.lighting-107.3.2",
+	"omni.kit.widget.zoombar-1.0.7",
+	"omni.kit.window.movie_capture-2.7.4",
+	"omni.kvdb-109.0.10",
+	"omni.localcache-109.0.10",
+	"omni.physx-109.0.10",
+	"omni.physx.cooking-109.0.10",
+	"omni.physx.foundation-109.0.10",
+	"omni.physx.stageupdate-109.0.10",
+	"omni.services.client-0.5.4",
+	"omni.services.transport.client.base-1.2.5",
+	"omni.services.transport.client.http_async-1.4.2",
+	"omni.usd.metrics.assembler-109.0.0",
+	"omni.usd.metrics.assembler.ui-109.0.0",
+	"omni.usd.schema.flow-109.0.1",
+	"omni.usd.schema.metrics.assembler-109.0.0",
+	"omni.usd.schema.physx-109.0.10",
+	"omni.usdphysics-109.0.10",
+	"omni.vdb_timesample_editor-0.2.3",
+	"omni.warp.core-1.10.1",
+]
+
+########################################################################################################################
+# END GENERATED PART
+########################################################################################################################

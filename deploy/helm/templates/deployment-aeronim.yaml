@@ -1,0 +1,121 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+{{- if include "rtdt.aeronimEnabled" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rtdt.fullname" . }}-aeronim
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.aeronim.selectorLabels" . | nindent 4 }}
+spec:
+  # Standard mode usually consumes all available GPUs (one for Kit, one for
+  # AeroNIM). Recreate avoids a rolling-update surge pod that cannot schedule
+  # because no extra GPU is available.
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "rtdt.aeronim.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rtdt.labels" . | nindent 8 }}
+        {{- include "rtdt.aeronim.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- /* The AeroNIM pod runs the custom NIM image and the data-image
+             init container. Pod-level pull secrets apply to both. */}}
+      {{- $pullSecrets := concat .Values.aeronim.imagePullSecrets .Values.data.imagePullSecrets }}
+      {{- if $pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml $pullSecrets | nindent 8 }}
+      {{- end }}
+      # Matches `ipc: host` in compose.yml. Triton uses shared memory between
+      # its preprocessing and inference processes, which drops performance
+      # sharply without host IPC.
+      hostIPC: {{ .Values.aeronim.hostIPC }}
+      initContainers:
+        # Stage the same runtime data image used by the kit pod, but with the
+        # path layout expected by aeronim/rtwt/1/model.py:
+        #   /opt/data   <- repo data/
+        #   /opt/stages <- repo stages/
+        - name: stage-data
+          image: "{{ .Values.data.image.repository }}:{{ .Values.data.image.tag }}"
+          imagePullPolicy: {{ .Values.data.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              cp -R /payload/data/.   /opt-data/
+              cp -R /payload/stages/. /opt-stages/
+              test -f /opt-stages/BaseCAEVariants.usda
+          volumeMounts:
+            - name: aeronim-data
+              mountPath: /opt-data
+            - name: aeronim-stages
+              mountPath: /opt-stages
+      containers:
+        - name: aeronim
+          image: "{{ .Values.aeronim.image.repository }}:{{ .Values.aeronim.image.tag }}"
+          imagePullPolicy: {{ .Values.aeronim.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rtdt.ngcApiSecretName" . }}
+                  key: NGC_API_KEY
+          {{- with .Values.aeronim.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: aeronim-data
+              mountPath: /opt/data
+            - name: aeronim-stages
+              mountPath: /opt/stages
+          # AeroNIM / Triton can take 5-10 min to load models on first start.
+          # Startup probe holds off readiness / liveness until it's up.
+          startupProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8080
+            failureThreshold: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8080
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 5
+      volumes:
+        - name: aeronim-data
+          emptyDir: {}
+        - name: aeronim-stages
+          emptyDir: {}
+      {{- with .Values.aeronim.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.aeronim.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.aeronim.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

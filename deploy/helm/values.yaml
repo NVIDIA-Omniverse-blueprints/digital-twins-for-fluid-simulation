@@ -1,0 +1,215 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+
+# -----------------------------------------------------------------------------
+# Deployment mode. Mirrors COMPOSE_PROFILES in the repo's .env_template.
+#
+#   standard - kit + aeronim + web. Requires two GPUs (kit + aeronim) and an
+#              NGC API key for the AeroNIM runtime.
+#   lite     - kit + web. Single GPU, no NGC key. Inference is served from the
+#              pre-baked cache staged by the rtdt-data image.
+#
+# Templates consume this via the rtdt.aeronimEnabled / rtdt.offlineMode helpers
+# in templates/_helpers.tpl. Override at install time with `--set mode=lite`.
+# -----------------------------------------------------------------------------
+mode: standard
+
+global:
+  # Name used when the chart creates an nvcr.io image pull secret from the NGC
+  # API key. Reference this secret from aeronim.imagePullSecrets only if the
+  # AeroNIM image is pulled directly from nvcr.io.
+  ngcImagePullSecretName: "ngc-docker-reg-secret"
+
+# -- NGC secret handling (standard mode only).
+#
+# The chart can create two secrets:
+#   1. An Opaque secret holding NGC_API_KEY, mounted as an env var on the kit
+#      and aeronim containers.
+#   2. A dockerconfigjson image-pull secret for nvcr.io, useful when the
+#      AeroNIM image is pulled directly from NGC instead of a user registry.
+#
+# Set `create: false` to manage secrets out of band (recommended for production,
+# use SealedSecrets, SOPS, external-secrets, or similar). When create=false,
+# pre-create the runtime API secret with the name the chart expects:
+#   - `<release>-<chart>-ngc-api-key` (or override via `apiSecretName`)
+#
+# Do not hardcode `apiKey` in this file. Passing it with `--set` is convenient
+# for development and short-lived test clusters, but Helm can retain rendered
+# secret data in the release record. For production, set create=false and manage
+# the runtime API secret outside Helm.
+ngcSecret:
+  create: true
+  # API key value. Empty default; populate via --set at install time.
+  apiKey: ""
+  # Optional: override the generated name for the Opaque NGC_API_KEY secret.
+  # When empty, the chart uses `<fullname>-ngc-api-key`.
+  apiSecretName: ""
+
+# =============================================================================
+# Kit application (Omniverse Kit: rendering + WebRTC streaming).
+# Same image for both modes; behavior flips via the RTWT_OFFLINE_MODE env var.
+# =============================================================================
+kit:
+  image:
+    # Replace with the registry path you pushed the image to, e.g.
+    # 123.dkr.ecr.us-west-2.amazonaws.com/rtdt-kit-app
+    repository: rtdt-kit-app
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Pull secrets for a private registry hosting the kit image. List of {name: ...}.
+  # Create the referenced Secrets out of band (kubectl create secret docker-registry).
+  imagePullSecrets: []
+
+  # Env vars consumed by scripts/startup.sh inside the container.
+  # The one-to-one mapping with compose.yml is intentional. If you need a new
+  # toggle, add it to both places so the two deployment paths stay aligned.
+  env:
+    # Which .kit app bundle to launch (overrides startup.sh default).
+    kitApp: "omni.rtwt.webrtc.kit"
+    # StreamSDK sender watchdog in ms. Raise when debugging with a debugger
+    # attached so pausing doesn't drop the WebRTC stream.
+    senderTimeout: "100000"
+    # Optional Nucleus / Omniverse credentials. Only needed if the loaded
+    # stage references omniverse:// URLs; safe to leave unset for local stages.
+    omniUser: ""
+    omniPass: ""
+
+  resources:
+    limits:
+      nvidia.com/gpu: "1"
+    requests:
+      nvidia.com/gpu: "1"
+
+  # WebRTC ports. Ranges match omni.kit.livestream.app defaults.
+  ports:
+    signaling: 49100       # TCP, Kit HTTP/WebRTC signaling
+    media: 1024            # UDP, media transport
+    webrtcStreaming:       # TCP + UDP, WebRTC streaming range
+      start: 47995
+      end: 48012
+    webrtcData:            # TCP + UDP, WebRTC data channel range
+      start: 49000
+      end: 49007
+
+  # Expose Kit ports as hostPort so the browser can reach the same node that
+  # served the web UI. Disable only when the platform provides equivalent
+  # routing for all Kit WebRTC ports.
+  hostPorts:
+    enabled: true
+
+  # Persistent storage for Omniverse caches. Default is emptyDir. Enable to
+  # keep shader/asset caches across pod restarts.
+  persistence:
+    ovCache:
+      enabled: false
+      size: 10Gi
+      storageClass: ""
+    ovLocalShare:
+      enabled: false
+      size: 5Gi
+      storageClass: ""
+
+  # Privileged pods are rarely permitted in managed clusters. The NVIDIA GPU
+  # Operator normally makes this unnecessary; flip to true only if your cluster
+  # lacks the operator or requires it for WebRTC performance reasons.
+  securityContext:
+    privileged: false
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# Data image (built from Dockerfile.data).
+#
+# A tiny busybox-based image containing /payload/data and /payload/stages.
+# An initContainer on the kit pod mounts this image, copies its contents into
+# a shared emptyDir, and the kit container then reads them from /app/rtwt/.
+#
+# The docker compose workflow uses host bind mounts and does not consume this
+# image, so there is no change to the local development loop.
+# =============================================================================
+data:
+  image:
+    # Replace with the registry path you pushed the image to, e.g.
+    # 123.dkr.ecr.us-west-2.amazonaws.com/rtdt-data
+    repository: rtdt-data
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Pull secrets for a private registry hosting the data image. See kit.imagePullSecrets.
+  imagePullSecrets: []
+
+# =============================================================================
+# Web application (Trame server on :5173).
+# Serves the browser UI. The browser talks to Kit directly for WebRTC.
+# =============================================================================
+web:
+  image:
+    # Replace with the registry path you pushed the image to, e.g.
+    # 123.dkr.ecr.us-west-2.amazonaws.com/rtdt-trame-app
+    repository: rtdt-trame-app
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Pull secrets for a private registry hosting the web image. See kit.imagePullSecrets.
+  imagePullSecrets: []
+
+  replicaCount: 1
+
+  service:
+    # NodePort for local / dev, LoadBalancer for cloud, ClusterIP if fronted
+    # by an ingress controller.
+    type: NodePort
+    # External service port (what clients hit). 80 is standard for HTTP; the
+    # service routes this to the container's fixed 5173 target port.
+    port: 80
+    # Only used when type=NodePort.
+    nodePort: 30080
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# Helm test hook.
+#
+# `helm test` launches a short-lived pod that verifies in-cluster service
+# connectivity. It does not prove browser-side WebRTC or rendering.
+# =============================================================================
+tests:
+  image:
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+
+# =============================================================================
+# AeroNIM inference (NVIDIA NIM for automotive aerodynamics, standard mode only).
+# Rendered only when mode=standard.
+# =============================================================================
+aeronim:
+  image:
+    # Built from aeronim/Dockerfile.aeronim. This image extends the upstream
+    # DoMINO Automotive Aero NIM and overlays the app-specific `rtwt` Triton
+    # model. Pointing at the raw upstream NIM image is not enough for this app.
+    repository: rtdt-aeronim
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # Pull secrets for a private registry hosting the custom AeroNIM image. If
+  # deploying directly from nvcr.io, set this to [{"name":"ngc-docker-reg-secret"}].
+  imagePullSecrets: []
+
+  resources:
+    limits:
+      nvidia.com/gpu: "1"
+    requests:
+      nvidia.com/gpu: "1"
+
+  # Matches `ipc: host` in compose.yml; required for Triton shared-memory.
+  hostIPC: true
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

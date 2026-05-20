@@ -1,0 +1,42 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary cameraSettings = {
+            dictionary Front = {
+                double3 position = (50000, 0, 0)
+                double radius = 500
+            }
+            dictionary Perspective = {
+                double3 position = (-663.8959495927804, 472.97203866789346, 371.76596737736367)
+                double3 target = (-0.1544610901771648, 0.9002735107307558, 75.82875983499582)
+            }
+            dictionary Right = {
+                double3 position = (0, -50000, 0)
+                double radius = 500
+            }
+            dictionary Top = {
+                double3 position = (0, 0, 50000)
+                double radius = 500
+            }
+            string boundCamera = "/World/Cameras/CameraMAIN_00"
+        }
+        dictionary renderSettings = {
+        }
+    }
+
+    defaultPrim = "World"
+    endTimeCode = 600
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+    subLayers = [
+        @./BaseCAEVariants.usda@
+    ]
+
+    """
+    This is the entry point. We add everything as sublayer and keep this empty by default
+    so that any changes made manually by the user as captured as overrides and provides us
+    a clean way of tracking them.
+    """
+)

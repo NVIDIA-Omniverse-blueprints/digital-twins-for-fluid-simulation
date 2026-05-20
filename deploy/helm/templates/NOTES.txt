@@ -1,0 +1,38 @@
+{{- include "rtdt.validateMode" . -}}
+NVIDIA Digital Twins for Fluid Simulation, version {{ .Chart.AppVersion }}
+Release: {{ .Release.Name }} (mode: {{ .Values.mode }})
+
+{{ if include "rtdt.aeronimEnabled" . -}}
+Standard mode: kit + aeronim + web. AeroNIM loads its models on first start
+(5-10 min); the kit container's wait-for-aeronim init container blocks until
+Triton reports /v2/health/ready.
+{{- else -}}
+Lite mode: kit + web. No AeroNIM; inference is served from the pre-baked
+cache staged by the rtdt-data image. Mirrors / rims controls are restricted
+to the values present in that cache.
+{{- end }}
+
+Watch the rollout:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+Reach the web UI:
+{{- if eq .Values.web.service.type "NodePort" }}
+  NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+  echo "http://${NODE_IP}:{{ .Values.web.service.nodePort }}"
+{{- else if eq .Values.web.service.type "LoadBalancer" }}
+  kubectl get svc {{ include "rtdt.fullname" . }}-web -w
+  # wait for EXTERNAL-IP to populate, then open http://<EXTERNAL-IP>/
+{{- else }}
+  kubectl port-forward svc/{{ include "rtdt.fullname" . }}-web 5173:{{ .Values.web.service.port }}
+  # open http://localhost:5173/
+{{- end }}
+
+Inspect logs:
+  kubectl logs -l app.kubernetes.io/component=kit     -c kit     --tail=200
+  kubectl logs -l app.kubernetes.io/component=web     --tail=200
+{{- if include "rtdt.aeronimEnabled" . }}
+  kubectl logs -l app.kubernetes.io/component=aeronim --tail=200
+{{- end }}
+
+Uninstall:
+  helm uninstall {{ .Release.Name }}

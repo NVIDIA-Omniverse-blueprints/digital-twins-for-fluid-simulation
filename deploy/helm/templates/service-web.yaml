@@ -1,0 +1,24 @@
+{{/*
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rtdt.fullname" . }}-web
+  labels:
+    {{- include "rtdt.labels" . | nindent 4 }}
+    {{- include "rtdt.web.selectorLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.web.service.type }}
+  ports:
+    - port: {{ .Values.web.service.port }}
+      # Trame binds :5173 inside the container (see trame-app/Dockerfile).
+      targetPort: 5173
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.web.service.type "NodePort") .Values.web.service.nodePort }}
+      nodePort: {{ .Values.web.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "rtdt.web.selectorLabels" . | nindent 4 }}

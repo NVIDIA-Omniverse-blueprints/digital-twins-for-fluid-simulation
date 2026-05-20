@@ -1,0 +1,31 @@
+
+[package]
+title = "omni.rtwt.controller"
+version = "1.0.0"
+description = "Real-Time Wind Tunnel Controller Extension"
+readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI.
+category = "internal"  # One of categories for UI.
+keywords = ["kit", "rtwt", "controller"]
+icon = "data/icon.png"  # Icon to show in the extension manager
+reloadable = true
+
+
+[settings]
+# Disable click-to-select in the viewport
+exts."omni.rtwt.controller".disable_viewport_selection = false
+
+[dependencies]
+"omni.cae.viz" = {}
+"omni.rtwt.inference" = {}
+"omni.rtwt.delegate" = {}
+"omni.kit.async_engine" = {}
+"omni.kit.livestream.messaging" = {}
+"omni.usd" = {}
+"omni.kit.ui.actions" = {}
+"omni.kit.quicklayout" = {}
+"omni.client" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.manipulator.camera" = {}
+
+[[python.module]]
+name = "omni.rtwt.controller"

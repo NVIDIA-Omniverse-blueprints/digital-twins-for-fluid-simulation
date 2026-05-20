@@ -1,0 +1,293 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+    subLayers = [
+        @./BaseCAE.usda@
+    ]
+)
+
+over "World"
+{
+    over "CAE" (
+        variants = {
+            string Mode = "Empty"
+            string SliceDirection = "X"
+        }
+        prepend variantSets = ["Mode", "SliceDirection"]
+    )
+    {
+        variantSet "Mode" = {
+            "Empty" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Flow" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 1
+                        bool forceClear = 0
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "inherited"
+                }
+            }
+            "Streamlines" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "inherited"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "inherited"
+                }
+            }
+            "Volume_VelocityMagnitude" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "inherited"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Volume_Pressure" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "inherited"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                 over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_VelocityMagnitude" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "inherited"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_Pressure" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "inherited"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+        }
+
+        variantSet "SliceDirection" = {
+            # X and Y are swapped since CAE prim is rotated.
+            "Y" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "x"
+                }
+            }
+            "X" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "y"
+                }
+            }
+            "Z" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "z"
+                }
+            }
+            "XYZ" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "xyz"
+                }
+            }
+        }
+    }
+}

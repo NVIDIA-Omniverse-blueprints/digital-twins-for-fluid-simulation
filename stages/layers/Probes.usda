@@ -1,0 +1,132 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+    """
+    This stage keeps the "Probe" widget
+    """
+)
+def Xform "World"
+{
+    def Xform "Probes"
+    {
+        token visibility (
+            customData = {
+                dictionary omni = {
+                    dictionary kit = {
+                        bool locked = true
+                    }
+                }
+            }
+        )
+        double3 xformOp:rotateXYZ = (0, 0, 0)
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+        def Mesh "Probe0" (
+            prepend apiSchemas = ["RtwtTransformAPI:y"]
+        )
+        {
+            bool omni:rtwt:transform:y:flipDirection = 1
+            float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+            int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+            int[] faceVertexIndices = [0, 1, 7, 0, 7, 6, 1, 2, 8, 1, 8, 7, 2, 3, 9, 2, 9, 8, 3, 4, 10, 3, 10, 9, 4, 5, 11, 4, 11, 10, 6, 7, 13, 6, 13, 12, 7, 8, 14, 7, 14, 13, 8, 9, 15, 8, 15, 14, 9, 10, 16, 9, 16, 15, 10, 11, 17, 10, 17, 16, 12, 13, 19, 12, 19, 18, 13, 14, 20, 13, 20, 19, 14, 15, 21, 14, 21, 20, 15, 16, 22, 15, 22, 21, 16, 17, 23, 16, 23, 22, 18, 19, 25, 18, 25, 24, 19, 20, 26, 19, 26, 25, 20, 21, 27, 20, 27, 26, 21, 22, 28, 21, 28, 27, 22, 23, 29, 22, 29, 28, 24, 25, 31, 24, 31, 30, 25, 26, 32, 25, 32, 31, 26, 27, 33, 26, 33, 32, 27, 28, 34, 27, 34, 33, 28, 29, 35, 28, 35, 34]
+            point3f[] points = [(0, 0, 1), (0.58778524, 0, 0.809017), (0.95105654, 0, 0.309017), (0.95105654, 0, -0.309017), (0.58778524, 0, -0.809017), (1.2246469e-16, 0, -1), (0, 0, 1), (0.18163563, 0.559017, 0.809017), (0.29389262, 0.9045085, 0.309017), (0.29389262, 0.9045085, -0.309017), (0.18163563, 0.559017, -0.809017), (3.784367e-17, 1.1647083e-16, -1), (0, 0, 1), (-0.47552827, 0.3454915, 0.809017), (-0.76942086, 0.559017, 0.309017), (-0.76942086, 0.559017, -0.309017), (-0.47552827, 0.3454915, -0.809017), (-9.907601e-17, 7.198293e-17, -1), (0, 0, 1), (-0.47552827, -0.3454915, 0.809017), (-0.76942086, -0.559017, 0.309017), (-0.76942086, -0.559017, -0.309017), (-0.47552827, -0.3454915, -0.809017), (-9.907601e-17, -7.198293e-17, -1), (0, 0, 1), (0.18163563, -0.559017, 0.809017), (0.29389262, -0.9045085, 0.309017), (0.29389262, -0.9045085, -0.309017), (0.18163563, -0.559017, -0.809017), (3.784367e-17, -1.1647083e-16, -1), (0, 0, 1), (0.58778524, -1.4396586e-16, 0.809017), (0.95105654, -2.3294166e-16, 0.309017), (0.95105654, -2.3294166e-16, -0.309017), (0.58778524, -1.4396586e-16, -0.809017), (1.2246469e-16, -2.9995195e-32, -1)]
+            token visibility = "invisible"
+            float3 xformOp:rotateXYZ = (0, 0, 0)
+            float3 xformOp:scale = (0.05, 0.05, 0.05)
+            double3 xformOp:translate = (0, 0, -0.2)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+            def FlowEmitterSphere "EmitterSphere"
+            {
+                float coupleRateFuel = 120
+                float coupleRateTemperature = 1
+                float coupleRateVelocity = 0
+                float fuel = 1
+                int layer = 0
+                float radius = 1
+                bool radiusIsWorldSpace = 0
+                float temperature = 1
+            }
+        }
+
+        def Mesh "Probe1" (
+            prepend references = </World/Probes/Probe0>
+        )
+        {
+            double3 xformOp:translate = (0, 0, -2.220446049250313e-16)
+        }
+
+        def Mesh "Probe2" (
+            prepend references = </World/Probes/Probe0>
+        )
+        {
+            double3 xformOp:translate = (0, 0, 0.2)
+        }
+
+        def Mesh "Probe3" (
+            prepend references = </World/Probes/Probe0>
+        )
+        {
+            double3 xformOp:translate = (0, 0, 0.39999999999999997)
+        }
+
+        def Mesh "Probe4" (
+            prepend references = </World/Probes/Probe0>
+        )
+        {
+            double3 xformOp:translate = (0, 0, 0.6000000000000001)
+        }
+
+        def Cylinder "Cylinder0" (
+            prepend apiSchemas = ["RtwtTransformAPI:y", "MaterialBindingAPI"]
+        )
+        {
+            bool omni:rtwt:transform:y:flipDirection = 1
+            uniform token axis = "Y"
+            float3[] extent = [(-0.05, -0.1, -0.05), (0.05, 0.1, 0.05)]
+            double height = 0.2
+            double radius = 0.05
+            custom bool refinementEnableOverride = 1
+            custom int refinementLevel = 2
+            double3 xformOp:rotateXYZ = (0, -0, -90)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-0.1, -3.9652137711352563e-16, -0.2)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+        }
+
+        def Cylinder "Cylinder1" (
+            prepend references = </World/Probes/Cylinder0>
+        )
+        {
+            double3 xformOp:translate = (-0.1, -3.9652137711352563e-16, 0)
+        }
+
+        def Cylinder "Cylinder2" (
+            prepend references = </World/Probes/Cylinder0>
+        )
+        {
+            double3 xformOp:translate = (-0.1, -3.9652137711352563e-16, 0.2)
+        }
+
+        def Cylinder "Cylinder3" (
+            prepend references = </World/Probes/Cylinder0>
+        )
+        {
+            double3 xformOp:translate = (-0.1, -3.9652137711352563e-16, 0.4)
+        }
+
+        def Cylinder "Cylinder4" (
+            prepend references = </World/Probes/Cylinder0>
+        )
+        {
+            double3 xformOp:translate = (-0.1, -3.9652137711352563e-16, 0.6)
+        }
+    }
+}

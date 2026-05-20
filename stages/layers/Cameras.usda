@@ -1,0 +1,101 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+)
+def Xform "World"
+{
+    def Scope "Cameras"
+    {
+        def "Orbit_Camera" (
+            prepend payload = @./Cameras/Orbit_Camera.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+        }
+
+        def "Camera_ANIM1" (
+            prepend payload = @./Cameras/Camera_ANIM1.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+
+        }
+
+        def "Camera_ANIM2" (
+            prepend payload = @./Cameras/Camera_ANIM2.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+
+        }
+        def "Camera_ANIM3" (
+            prepend payload = @./Cameras/Camera_ANIM3.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+
+        }
+        def "Camera_ANIM4" (
+            prepend payload = @./Cameras/Camera_ANIM4.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+
+        }
+
+        def "Camera_ANIM5" (
+            prepend payload = @./Cameras/Camera_ANIM5.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+
+        }
+
+        def "FullOrbit_Camera" (
+            prepend payload = @./Cameras/FullOrbit_Camera.usda@
+        )
+        {
+            bool omni:kit:cameraLock = 1
+        }
+
+        def Camera "CameraMAIN_00" (
+            prepend apiSchemas = ["OmniRtxCameraAutoExposureAPI_1", "OmniRtxCameraExposureAPI_1"]
+            hide_in_stage_window = false
+            no_delete = false
+        )
+        {
+            float4[] clippingPlanes = []
+            float2 clippingRange = (1, 10000000)
+            float exposure = 0
+            custom float exposure:fStop = 5
+            custom float exposure:iso = 100
+            custom float exposure:responsivity = 1.1026709
+            custom float exposure:time = 0.02
+            float focalLength = 18.147562
+            float focusDistance = 400
+            float fStop = 0
+            float horizontalAperture = 20.955
+            float horizontalApertureOffset = 0
+            custom vector3d omni:kit:centerOfInterest = (0, 0, -1013.0521042349192)
+            custom float omni:rtx:autoExposure:adaptationSpeed = 3.5
+            custom bool omni:rtx:autoExposure:enabled = 0
+            custom bool omni:rtx:autoExposure:histogramClamping:enabled = 1
+            custom float omni:rtx:autoExposure:histogramClamping:maxLuminance = 100000
+            custom float omni:rtx:autoExposure:histogramClamping:minLuminance = 50
+            custom token omni:rtx:autoExposure:histogramFilter = "median"
+            custom float omni:rtx:autoExposure:whitePointScale = 10
+            token projection = "perspective"
+            uniform token purpose = "default"
+            double shutter:close = 0
+            double shutter:open = 0
+            uniform token stereoRole = "mono"
+            float verticalAperture = 15.2908
+            float verticalApertureOffset = 0
+            token visibility = "inherited"
+            float3 xformOp:rotateYXZ = (70.67873, -4.8064265e-14, -125.65603)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-776.9374182833673, 653.5561542039375, 411.01190515011064)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateYXZ", "xformOp:scale"]
+        }
+    }
+}

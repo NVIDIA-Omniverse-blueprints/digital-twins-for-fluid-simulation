@@ -1,0 +1,235 @@
+#usda 1.0
+(
+    """
+        Schema for RTWT
+    """
+    subLayers = [
+        @usd/schema.usda@,
+    ]
+)
+
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+#  its affiliates is strictly prohibited.
+
+over "GLOBAL" (
+    customData = {
+        string libraryName = "omniRtwt"
+        string libraryPath = "."
+        string libraryPrefix = "OmniRtwt"
+        bool skipCodeGeneration = true
+    }
+)
+{
+}
+
+class "RtwtFieldArrayAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "FieldArrayAPI"
+    }
+    doc = """Applies to a prim to specify that it is a surrogate field array for RTWT."""
+)
+{
+    uniform token omni:rtwt:field_array:tag = "" (
+        doc = "Unique tag that changes every time new inference results are available."
+        displayName = "Tag"
+        displayGroup ="RTWT Field Array"
+    )
+}
+
+class "RtwtInferenceCacheAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceCacheAPI"
+    }
+    doc = """Adding caching related APIs to an inference prim."""
+)
+{
+    uniform bool omni:rtwt:inference_cache:useCache = false (
+        doc = """Specifies whether to use cached data if available."""
+        displayName = "Use Cache"
+        displayGroup = "RTWT Inference Cache"
+    )
+
+    uniform bool omni:rtwt:inference_cache:preCaching = false (
+        doc = """Specifies whether we are currently pre-caching."""
+        displayName = "Pre- Caching"
+        displayGroup = "RTWT Inference Cache"
+    )
+}
+
+class "RtwtInferenceAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceAPI"
+    }
+    doc = """Inference API used to indicate tag an inference operator"""
+)
+{
+    uniform float omni:rtwt:inference:velocity = 25.0 (
+        doc = "Specifies the velocity (in m/s) to use for streaming inference."
+        displayName = "Velocity"
+        displayGroup = "RTWT Inference"
+    )
+}
+
+
+class "RtwtResultFieldSelectionAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        string className = "ResultFieldSelectionAPI"
+        token apiSchemaType = "multipleApply"
+        token propertyNamespacePrefix = "omni:rtwt:result_field_selection"
+    }
+    doc = """Multiple-apply API schema for selecting a field target to pass inference result to."""
+)
+{
+    rel target (
+        doc = """Relationship to field. Must be single."""
+        displayGroup = "RTWT Result Field Selection"
+        displayName = "Field"
+    )
+}
+
+
+
+class "RtwtTransformAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "multipleApply"
+        string className = "TransformAPI"
+        token propertyNamespacePrefix = "omni:rtwt:transform"
+    }
+    doc = """Transform API used to indicate tag a transform operator"""
+)
+{
+    uniform bool flipDirection = false (
+        doc = "Whether the transform operator is inverse i.e. flip -ve and +ve directions."
+        displayName = "Flip Direction"
+        displayGroup = "RTWT Transform"
+    )
+}
+
+class "RtwtModelAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "ModelAPI"
+    }
+    doc = """Used to assign a unique identifier to identify the geometry model being used for the inference"""
+)
+{
+    uniform string omni:rtwt:model:tag = "" (
+        doc = "Identifier string."
+        displayGroup = "RTWT Model"
+        displayName = "Tag"
+    )
+}
+
+class "RtwtInferenceAppStateAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceAppStateAPI"
+    }
+    doc = "Schema for the web application state"
+)
+{
+    uniform token omni:rtwt:app_state:spoiler = "On" (
+        doc = "Enable/Disable the spoiler"
+        displayGroup = "RTWT Inference App State"
+        displayName = "Spoiler"
+        allowedTokens = ["On", "Off"]
+    )
+
+    uniform token omni:rtwt:app_state:rims = "Standard" (
+        doc = "Specifies the rims"
+        displayGroup = "RTWT Inference App State"
+        displayName = "Rims"
+        allowedTokens = ["Standard", "Aero"]
+    )
+
+    uniform token omni:rtwt:app_state:mirrors = "On" (
+        doc = "Enable/Disable the mirrors"
+        displayGroup = "RTWT Inference App State"
+        displayName = "Mirrors"
+        allowedTokens = ["On", "Off"]
+    )
+
+    uniform float omni:rtwt:app_state:velocity = 25.0 (
+        doc = "Flow velocity in m/s."
+        displayName = "Velocity"
+        displayGroup = "RTWT Inference App State"
+    )
+}
+
+class "RtwtVizAppStateAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "VizAppStateAPI"
+    }
+    doc = "Schema for the web application state"
+)
+{
+    uniform bool omni:rtwt:app_state:animatedStreaks = false (
+        doc = "When true, switches the Streamlines material to AnimatedStreaks and plays the timeline."
+        displayName = "Animated Streaks"
+        displayGroup = "RTWT Viz App State"
+    )
+
+    uniform bool omni:rtwt:app_state:playAnimation = false (
+        doc = "Explicit request to play the timeline animation (e.g. orbit camera). Combined with the animatedStreaks condition to drive timeline playback."
+        displayName = "Play Animation"
+        displayGroup = "RTWT Viz App State"
+    )
+
+    uniform int omni:rtwt:app_state:sliderValue = 0 (
+        doc = "UI slider value in the range [-100, 100] controlling the visualization position."
+        displayName = "Slider Value"
+        displayGroup = "RTWT Viz App State"
+    )
+
+    uniform token omni:rtwt:app_state:sliceDirection = "X" (
+        doc = "Active slice plane direction."
+        displayName = "Slice Direction"
+        displayGroup = "RTWT Viz App State"
+        allowedTokens = ["X", "Y", "Z"]
+    )
+
+    uniform token omni:rtwt:app_state:vizField = "VelocityMagnitude" (
+        doc = "Field to visualize for Slice and Volume modes."
+        displayName = "Viz Field"
+        displayGroup = "RTWT Viz App State"
+        allowedTokens = ["VelocityMagnitude", "Pressure"]
+    )
+
+    uniform token omni:rtwt:app_state:vizMode = "Streamlines" (
+        doc = "Active visualization mode."
+        displayName = "Viz Mode"
+        displayGroup = "RTWT Viz App State"
+        allowedTokens = [
+            "Empty",
+            "Flow",
+            "Slice",
+            "Streamlines",
+            "Volume"
+        ]
+    )
+
+    rel omni:rtwt:app_state:roi (
+        doc = "Relationship to the region of interest prim used to compute slider-driven transform bounds."
+        displayGroup = "RTWT Viz App State"
+        displayName = "Region of Interest"
+    )
+}

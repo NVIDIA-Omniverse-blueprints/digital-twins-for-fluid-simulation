@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+# Semantic Versionning is used: https://semver.org/
+version = "1.0.0"
+
+# The title and description fields are primarly for displaying extension info in UI
+title = "RTWT Predicted Field Delegate"
+description = "Extension that provides a CAE data delegate for CaePredictedFieldArray prims."
+
+# Path (relative to the root) or content of readme markdown file for UI.
+readme  = "docs/README.md"
+
+# One of categories for UI.
+category = "internal"
+
+# Keywords for the extension
+keywords = ["kit", "rtwt", "cae", "delegate", "surrogate"]
+
+# Location of change log file in target (final) folder of extension, relative to the root.
+changelog="docs/CHANGELOG.md"
+
+# Icon is shown in Extensions window, it is recommended to be square, of size 256x256.
+icon = "data/icon.png"
+
+[dependencies]
+"omni.usd" = {}
+"omni.cae.data" = {}
+"omni.cae.delegate.npz" = {}
+"omni.rtwt.schema" = {}
+
+# Main python module this extension provides.
+[[python.module]]
+name = "omni.rtwt.delegate"

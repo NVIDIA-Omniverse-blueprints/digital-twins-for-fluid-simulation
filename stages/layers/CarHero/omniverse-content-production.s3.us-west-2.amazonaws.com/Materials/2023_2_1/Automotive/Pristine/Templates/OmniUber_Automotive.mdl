@@ -1,0 +1,2611 @@
+mdl 1.8;
+
+import ::anno::*;
+import ::base::*;
+import ::df::*;
+import ::limits::*;
+import ::math::*;
+import ::state::*;
+import ::tex::*;
+import ::scene::*;
+
+import ::OmniSurface::OmniShared::*;
+import ::OmniSurface::OmniImage::*;
+import ::OmniSurface::OmniSurfaceLiteBase::*;
+import ::OmniSurface::OmniSurfaceBase::*;
+
+import ::nvidia::core_definitions::blend_normals;
+
+import ::nvidia::core_definitions::triplanar_file_texture;
+import ::nvidia::core_definitions::triplanar_normalmap_texture;
+
+export enum blend_source
+{
+    texture [[ anno::display_name( "Texture" ) ]],
+    direction [[ anno::display_name( "Direction" ) ]],
+    axis [[ anno::display_name( "Axis" ) ]],
+    primvar [[ anno::display_name( "Primvar" ) ]]
+};
+
+export enum uvs_mode
+{
+    texture_coord_0 [[ anno::display_name( "Texture Coordinate 0" ) ]],
+    triplanar       [[ anno::display_name( "TriPlanar" ) ]]
+};
+
+export enum uv_set_selection
+{
+    uv_set_1 [[ anno::display_name( "UV Set 1" ) ]],
+    uv_set_2 [[ anno::display_name( "UV Set 2" ) ]],
+    uv_set_3 [[ anno::display_name( "UV Set 3" ) ]],
+    uv_set_4 [[ anno::display_name( "UV Set 4" ) ]]
+};
+
+export enum channel_mode
+{
+    r    [[ anno::display_name( "R" ) ]],
+    g    [[ anno::display_name( "G" ) ]],
+    b    [[ anno::display_name( "B" ) ]],
+    a    [[ anno::display_name( "A" ) ]],
+    rgb  [[ anno::display_name( "RGB" ) ]]
+};
+
+export enum axis_mode
+{
+    x        [[ anno::display_name( "X" )  ]],
+    x_invert [[ anno::display_name( "-X" ) ]],
+    y        [[ anno::display_name( "Y" )  ]],
+    y_invert [[ anno::display_name( "-Y" ) ]],
+    z        [[ anno::display_name( "Z" )  ]],
+    z_invert [[ anno::display_name( "-Z" ) ]]
+};
+
+export enum layer_order
+{
+    below [[ anno::display_name( "Below Clear Coat" ) ]],
+    above [[ anno::display_name( "Above Clear Coat" ) ]]
+};
+
+export struct material_layer
+{
+    color  base_color;
+    float  metallic;
+    float  cavity;
+    float  specular_weight;
+    float  roughness;
+    float3 normal;
+};
+
+export struct coat_layer
+{
+    float   coat_weight;
+    color   coat_color;
+    float   coat_roughness;
+    uniform float   coat_ior;
+    float   coat_anisotropy;
+    float   coat_anisotropy_rotation;
+    float   coat_affect_color;
+    float   coat_affect_roughness;
+    float3  coat_normal;
+};
+
+export struct anisotropy
+{
+    float anisotropy_roughness_u;
+    float anisotropy_roughness_v;
+    float anisotropy_rotation;
+};
+
+export struct uv_set_settings
+{
+    uvs_mode mode           = texture_coord_0;
+    float2   uv_scale       = float2( 1.f );
+    float2   uv_offset      = float2( 0.f );
+    float2   uv_offset_time = float2( 0.f );
+    float    uv_rotation    = 0.f;
+    float    triplanar_blend_range = 0.5f;
+};
+
+export struct uv_streams
+{
+    uv_set_settings uv_set_settings_1;
+    uv_set_settings uv_set_settings_2;
+    uv_set_settings uv_set_settings_3;
+    uv_set_settings uv_set_settings_4;
+};
+
+export struct flakes
+{
+    float   priority;
+    int     seed;
+    float4  carrier;
+};
+
+export struct flake_layer
+{
+    float3 normal;
+    float  roughness;
+    float  weight;
+};
+
+int hash( int seed, int i )
+{
+	return(i ^ seed ) * 1075385539;
+}
+
+int random_next( int seed )
+{
+	seed ^= seed <<  13;
+	seed ^= seed >>> 17;
+	seed ^= seed <<  5;
+	return seed;
+}
+
+float random_value( int seed )
+{
+	return math::abs( float( seed ) * 0.00000000046566f );
+}
+
+int random_initialize( int3 seed )
+{
+    return hash( hash( hash( 0, seed.x ), seed.y ), seed.z );
+}
+
+float3 rotate_position(
+    float3 position = state::position(),
+    float3 xi       = float3( 0.f )
+)
+{
+    float theta = math::PI * 2.f * xi.x;
+    float phi   = math::PI * 2.f * xi.y;
+    float z     = xi.z * 2.f;
+
+    float r         = math::sqrt( z );
+    float[2] sp_cp  = math::sincos( phi );
+    float Vx        = r * sp_cp[0];
+    float Vy        = r * sp_cp[1];
+    float Vz        = math::sqrt( 2.f - z );
+
+    float[2] st_ct  = math::sincos( theta );
+    float Sx        = Vx * st_ct[1] - Vy * st_ct[0];
+    float Sy        = Vx * st_ct[0] + Vy * st_ct[1];
+
+    float3x3 M(
+		Vx * Sx - st_ct[1], Vx * Sy - st_ct[0], Vx * Vz,
+		Vy * Sx + st_ct[0], Vy * Sy - st_ct[1], Vy * Vz,
+		Vz * Sx,            Vz * Sy,            1.0f - z);
+
+    return M * position;
+}
+
+export float linstep(
+    float input = 0.f,
+    float min_in   = 0.f,
+    float max_in   = 1.f,
+    float min_out  = 0.f,
+    float max_out  = 1.f
+)
+{
+    float in_range  = math::saturate( ( input - min_in ) / ( max_in - min_in ) );
+    float out_range = math::lerp( min_out, max_out, in_range );
+    return out_range;
+
+}
+
+export float histogram_range(
+    float input     = 0.f,
+    float range     = 1.f,
+    float position  = 0.5f
+)
+{
+    float x = ( range * 0.5f ) + ( 1.f - position );
+    float y = ( 1.f - position ) * 2.f;
+    float z = ( range * 0.5f ) + position;
+    float w = position * 2.f;
+
+    return linstep( input, 0.f, 1.f, 1.f - math::min( x, y ), math::min( z, w ) );
+}
+
+export float threshold_blend(
+    float input     = 1.f,
+    float height    = 0.5f,
+    float threshold = 0.33f
+)
+{
+    height = 1.f - height;
+    float epsilon = 0.0001;
+    float min = math::saturate( height - ( threshold + epsilon ) );
+    return math::saturate( math::smoothstep( min, height, input ) );
+}
+
+export float lookup_float4_channel(
+    uniform texture_2d  tex           = texture_2d(),
+    float2              coord         = float2( 0.f ),
+    channel_mode        channel       = r,
+    float               default_value = 1.f
+)
+{
+    if ( !tex::texture_isvalid( tex ) ){
+        return default_value;
+    }
+
+    float4 texel = tex::lookup_float4( tex: tex, coord: coord );
+    switch ( channel )
+    {
+        case r:
+            return texel.x * default_value;
+        case g:
+            return texel.y * default_value;
+        case b:
+            return texel.z * default_value;
+        case a:
+            return texel.w * default_value;
+        case rgb:
+            float3 luminance = float3( 0.2126f, 0.7152f, 0.0722f );
+            return math::dot( float3( texel.x, texel.y, texel.z ), luminance ) * default_value;
+    }
+}
+
+export color color_adjustments(
+    color input = color( 1.f ),
+    color color_offset = color( 0.f ),
+    color color_scale  = color( 1.f ),
+    color color_tint   = color( 1.f ),
+    float desaturation = 0.f
+)
+{
+    input = input * color_scale + color_offset;
+    if ( desaturation > 0.f ){
+        float3 luminance = float3( 0.2126f, 0.7152f, 0.0722f );
+        color gray = color( math::dot( float3( input ), luminance ) );
+        input = color( math::lerp( input, gray, desaturation ) );
+    }
+    return input * color_tint;
+}
+
+export float lookup_triplanar_channel(
+    uniform texture_2d  tex           = texture_2d(),
+    float2              uv_scale      = float2( 0.f ),
+    float2              uv_offset     = float2( 0.f ),
+    channel_mode        channel       = r,
+    float               default_value = 1.f,
+    float               triplanar_blend_range = 0.5f
+)
+{
+    if ( !tex::texture_isvalid( tex ) ){
+        return default_value;
+    }
+
+    uv_scale *= 0.01f;
+    float3 texel = float3( ::nvidia::core_definitions::triplanar_file_texture(
+                                        texture_1: tex,
+                                        scaling_1: uv_scale,
+                                        translation_1: uv_offset,
+                                        texture_2: tex,
+                                        scaling_2: uv_scale,
+                                        translation_2: uv_offset,
+                                        texture_3: tex,
+                                        scaling_3: uv_scale,
+                                        translation_3: uv_offset,
+                                        blend_range: triplanar_blend_range,
+                                        object_space: true ) );
+
+    /*float3 texel = float3( triplanar_color( tex, float3( uv_scale.x, uv_scale.y, uv_scale.x )  ) );*/
+
+    switch ( channel )
+    {
+        case r:
+            return texel.x * default_value;
+        case g:
+            return texel.y * default_value;
+        case b:
+            return texel.z * default_value;
+        case a:
+            return texel.x * default_value;
+        case rgb:
+            float3 luminance = float3( 0.2126f, 0.7152f, 0.0722f );
+            return math::dot( float3( texel.x, texel.y, texel.z ), luminance ) * default_value;
+    }
+}
+
+export float3 lookup_triplanar_normal(
+    uniform texture_2d  tex           = texture_2d(),
+    float               normal_scale  = 1.f,
+    float2              uv_scale      = float2( 0.f ),
+    float2              uv_offset     = float2( 0.f ),
+    uniform bool        flip_green    = false,
+    float3              default_value = state::normal(),
+    float               triplanar_blend_range = 0.5f
+)
+{
+    if ( !tex::texture_isvalid( tex ) ){
+        return default_value;
+    }
+
+    uv_scale *= 0.01f;
+    float3 texel = float3( ::nvidia::core_definitions::triplanar_normalmap_texture(
+                                        texture_1: tex,
+                                        scaling_1: uv_scale,
+                                        translation_1: uv_offset,
+                                        texture_2: tex,
+                                        scaling_2: uv_scale,
+                                        translation_2: uv_offset,
+                                        texture_3: tex,
+                                        scaling_3: uv_scale,
+                                        translation_3: uv_offset,
+                                        object_space: true,
+                                        blend_range: triplanar_blend_range,
+                                        flip_1: !flip_green,
+                                        flip_2: !flip_green,
+                                        flip_3: !flip_green,
+                                        strength: normal_scale ) );
+
+    return texel;
+}
+
+export color lookup_triplanar_color(
+    uniform texture_2d  tex           = texture_2d(),
+    float2              uv_scale      = float2( 0.f ),
+    float2              uv_offset     = float2( 0.f ),
+    color               default_value = color( 1.f ),
+    float               triplanar_blend_range = 0.5f
+)
+{
+    if ( !tex::texture_isvalid( tex ) ){
+        return default_value;
+    }
+
+    uv_scale *= 0.01f;
+    color texel = ::nvidia::core_definitions::triplanar_file_texture(
+                                        texture_1: tex,
+                                        scaling_1: uv_scale,
+                                        translation_1: uv_offset,
+                                        texture_2: tex,
+                                        scaling_2: uv_scale,
+                                        translation_2: uv_offset,
+                                        texture_3: tex,
+                                        scaling_3: uv_scale,
+                                        translation_3: uv_offset,
+                                        blend_range: triplanar_blend_range,
+                                        object_space: true );
+
+    return texel;
+}
+
+flakes flake_normal(
+    flakes flake       = flakes(),
+    float spread       = 0.54f
+)
+{
+    if( flake.priority <= 0.f )
+    {
+        flake.carrier = float4( state::normal().x, state::normal().y, state::normal().z, 1.f );
+        return flake;
+    }
+
+    int seed   = random_next( flake.seed );
+    float xi0  = random_value( seed );
+    seed       = random_next( seed );
+    float xi1  = random_value( seed );
+    float phi  = 2.f * math::PI * xi0;
+
+    float roughness = spread * spread;
+
+    float tantheta = math::sqrt( -roughness * roughness * math::log( 1.f - xi1 ) );
+    float sintheta = tantheta / math::sqrt( 1.f + tantheta * tantheta );
+    float costheta = math::sqrt( 1.f - sintheta * sintheta );
+    float[2] scphi = math::sincos( phi );
+
+    float3 normal = state::texture_tangent_u(0) * scphi[1] * sintheta +
+                    state::texture_tangent_v(0) * scphi[0] * sintheta +
+                    state::normal() * costheta;
+
+    flake.carrier = float4( normal.x, normal.y, normal.z, 1.f );
+    flake.seed    = seed;
+    return flake;
+}
+
+flakes flake_noise(
+    float3 position          = state::position(),
+    float  jitter_scale      = 0.5f,
+    float  flake_diameter    = 0.5f,
+    float  flake_probability = 1.f
+)
+{
+    flakes flake;
+
+    float3 base_position      = math::floor( position );
+    int3   base_position_int  = int3( base_position );
+
+    flake_diameter = math::min( flake_diameter, ( 1.5f - 0.5f * jitter_scale ) / math::sqrt( 3.f ) );
+
+    for( int i = -1; i < 2; ++i ){
+        for( int j = -1; j < 2; ++j ){
+            for( int k = -1; k < 2; ++k ){
+                int seed = random_initialize( base_position_int + int3( i, j, k ) );
+
+                seed = random_next( seed );
+                if( random_value( seed ) > flake_probability )
+                    continue;
+
+                seed = random_next( seed );
+                float priority = random_value( seed );
+                if( priority < flake.priority )
+                    continue;
+
+                float3 flake_position = base_position + float3( i, j, k ) + float3( 0.5f );
+
+                if( jitter_scale > 0.f ){
+                    seed                = random_next( seed );
+                    flake_position.x   += ( random_value( seed ) - 0.5f ) * jitter_scale;
+                    seed                = random_next( seed );
+                    flake_position.y   += ( random_value( seed ) - 0.5f ) * jitter_scale;
+                    seed                = random_next( seed );
+                    flake_position.z   += ( random_value( seed ) - 0.5f ) * jitter_scale;
+                }
+
+                float3 p = position - flake_position;
+                if( math::dot( p, p ) >= flake_diameter * flake_diameter * 4.f )
+                    continue;
+
+                float3 xi_rotation;
+                seed            = random_next( seed );
+                xi_rotation.x   = random_value( seed );
+                seed            = random_next( seed );
+                xi_rotation.y   = random_value( seed );
+                seed            = random_next( seed );
+                xi_rotation.z   = random_value( seed );
+                p               = rotate_position( p, xi_rotation );
+
+                if( math::abs( p.x ) <= flake_diameter &&
+                    math::abs( p.y ) <= flake_diameter &&
+                    math::abs( p.z ) <= flake_diameter )
+                {
+                    flake.priority = priority;
+                    flake.seed     = seed;
+                }
+            }
+        }
+    }
+
+    return flake;
+}
+
+export uv_streams initialize_uv_streams(
+    uvs_mode mode_1 = texture_coord_0, float2 uv_scale_1 = float2( 1.f ), float2 uv_offset_1 = float2( 0.f ), float2 uv_offset_time_1 = float2( 0.f ), float uv_rotation_1 = 0.f, float triplanar_blend_range_1 = 0.5f,
+    uvs_mode mode_2 = texture_coord_0, float2 uv_scale_2 = float2( 1.f ), float2 uv_offset_2 = float2( 0.f ), float2 uv_offset_time_2 = float2( 0.f ), float uv_rotation_2 = 0.f, float triplanar_blend_range_2 = 0.5f,
+    uvs_mode mode_3 = texture_coord_0, float2 uv_scale_3 = float2( 1.f ), float2 uv_offset_3 = float2( 0.f ), float2 uv_offset_time_3 = float2( 0.f ), float uv_rotation_3 = 0.f, float triplanar_blend_range_3 = 0.5f,
+    uvs_mode mode_4 = texture_coord_0, float2 uv_scale_4 = float2( 1.f ), float2 uv_offset_4 = float2( 0.f ), float2 uv_offset_time_4 = float2( 0.f ), float uv_rotation_4 = 0.f, float triplanar_blend_range_4 = 0.5f
+)
+{
+    uv_streams streams;
+
+    streams.uv_set_settings_1.mode        = mode_1;
+    streams.uv_set_settings_1.uv_scale    = uv_scale_1;
+    uv_offset_1 += uv_offset_time_1 * state::animation_time();
+    streams.uv_set_settings_1.uv_offset   = uv_offset_1;
+    streams.uv_set_settings_1.uv_rotation = uv_rotation_1;
+    streams.uv_set_settings_1.triplanar_blend_range = triplanar_blend_range_1;
+
+    streams.uv_set_settings_2.mode        = mode_2;
+    streams.uv_set_settings_2.uv_scale    = uv_scale_2;
+    uv_offset_2 += uv_offset_time_2 * state::animation_time();
+    streams.uv_set_settings_2.uv_offset   = uv_offset_2;    
+    streams.uv_set_settings_2.uv_rotation = uv_rotation_2;
+    streams.uv_set_settings_2.triplanar_blend_range = triplanar_blend_range_2;
+
+    streams.uv_set_settings_3.mode        = mode_3;
+    streams.uv_set_settings_3.uv_scale    = uv_scale_3;
+    uv_offset_3 += uv_offset_time_3 * state::animation_time();
+    streams.uv_set_settings_3.uv_offset   = uv_offset_3;    
+    streams.uv_set_settings_3.uv_rotation = uv_rotation_3;
+    streams.uv_set_settings_3.triplanar_blend_range = triplanar_blend_range_3;
+
+    streams.uv_set_settings_4.mode        = mode_4;
+    streams.uv_set_settings_4.uv_scale    = uv_scale_4;
+    uv_offset_4 += uv_offset_time_4 * state::animation_time();   
+    streams.uv_set_settings_4.uv_offset   = uv_offset_4;
+    streams.uv_set_settings_4.uv_rotation = uv_rotation_4;
+    streams.uv_set_settings_4.triplanar_blend_range = triplanar_blend_range_4;
+
+    return streams;
+}
+
+export uv_set_settings select_uv_stream(
+    uv_streams streams,
+    uv_set_selection uv_stream = uv_set_1
+)
+{
+    switch( uv_stream ){
+        case uv_set_1:
+            return streams.uv_set_settings_1;
+        case uv_set_2:
+            return streams.uv_set_settings_2;
+        case uv_set_3:
+            return streams.uv_set_settings_3;
+        case uv_set_4:
+            return streams.uv_set_settings_4;
+    }
+}
+
+export material_layer initialize_material_layer(
+    uv_set_settings         uv_stream                   = uv_set_settings(),
+    uniform texture_2d      tBaseColor                  = texture_2d(),
+    color                   base_color_offset           = color(0.f),
+    color                   base_color_scale            = color(1.f),
+    color                   base_color_tint             = color(1.f),
+    float                   base_color_desaturation     = 0.f,
+    uniform texture_2d      tMetallic                   = texture_2d(),
+    channel_mode            metallic_channel            = r,
+    float                   metallic_factor             = 1.f,
+    uniform texture_2d      tCavity                     = texture_2d(),
+    channel_mode            cavity_channel              = r,
+    float                   specular_weight             = 1.f,
+    uniform texture_2d      tRoughness                  = texture_2d(),
+    channel_mode            roughness_channel           = r,
+    float                   roughness_factor            = 1.f,
+    float2                  roughness_range_position    = float2( 1.f, 0.5f ),
+    uniform texture_2d      tNormal                     = texture_2d(),
+    uniform float           normal_scale               = 1.f,
+    uniform bool            normal_flip_green           = false
+)
+{
+    material_layer layer;
+    color base_color_tex;
+    float metallic_tex;
+    float cavity_tex;
+    float roughness_tex;
+    float3 normal_tex;
+
+    layer.specular_weight = specular_weight;
+
+    switch ( uv_stream.mode )
+    {
+        case texture_coord_0:
+            base_color_tex      = tex::texture_isvalid( tBaseColor ) ?
+                                    tex::lookup_color( tex: tBaseColor,
+                                                       coord: float2( state::texture_coordinate(0).x,
+                                                                      state::texture_coordinate(0).y ) *
+                                                              uv_stream.uv_scale +
+                                                              uv_stream.uv_offset
+                                    ) : color( 1.f );
+            layer.base_color    = color_adjustments( input:        base_color_tex,
+                                                     color_offset: base_color_offset,
+                                                     color_scale:  base_color_scale,
+                                                     color_tint:   base_color_tint,
+                                                     desaturation: base_color_desaturation );
+
+            metallic_tex        = lookup_float4_channel( tex: tMetallic,
+                                                         coord: float2( state::texture_coordinate(0).x,
+                                                                        state::texture_coordinate(0).y ) *
+                                                                uv_stream.uv_scale +
+                                                                uv_stream.uv_offset,
+                                                         channel: metallic_channel,
+                                                         default_value: metallic_factor );
+            layer.metallic      = metallic_tex;
+
+            cavity_tex          = lookup_float4_channel( tex: tCavity,
+                                                         coord: float2( state::texture_coordinate(0).x,
+                                                                        state::texture_coordinate(0).y ) *
+                                                                uv_stream.uv_scale +
+                                                                uv_stream.uv_offset,
+                                                         channel: cavity_channel,
+                                                         default_value: 1.f );
+            layer.cavity        = cavity_tex;
+
+            roughness_tex       = lookup_float4_channel( tex: tRoughness,
+                                                         coord: float2( state::texture_coordinate(0).x,
+                                                                        state::texture_coordinate(0).y ) *
+                                                                uv_stream.uv_scale +
+                                                                uv_stream.uv_offset,
+                                                         channel: roughness_channel,
+                                                         default_value: roughness_factor );
+            layer.roughness     = histogram_range( roughness_tex, roughness_range_position.x, roughness_range_position.y );
+
+            normal_tex          = tex::texture_isvalid( tNormal ) ?
+                                    OmniSurface::OmniImage::tangent_space_normal_lookup_2(
+                                        texture: tNormal,
+                                        use_uv_coords: true,
+                                        uv_coords: float2( state::texture_coordinate(0).x,
+                                                        state::texture_coordinate(0).y ) *
+                                                        uv_stream.uv_scale +
+                                                        uv_stream.uv_offset,
+                                        tangent_space_factor: normal_scale,
+                                        tangent_space_flip_g_channel: normal_flip_green
+                                    ) : state::normal();
+            layer.normal        = normal_tex;
+            return layer;
+
+        case triplanar:
+            base_color_tex      = lookup_triplanar_color(
+                                    tex: tBaseColor,
+                                    uv_scale: uv_stream.uv_scale,
+                                    uv_offset: uv_stream.uv_offset,
+                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+            layer.base_color    = color_adjustments( input:        base_color_tex,
+                                                     color_offset: base_color_offset,
+                                                     color_scale:  base_color_scale,
+                                                     color_tint:   base_color_tint,
+                                                     desaturation: base_color_desaturation );
+
+            metallic_tex        = lookup_triplanar_channel(
+                                    tex: tMetallic,
+                                    uv_scale: uv_stream.uv_scale,
+                                    uv_offset: uv_stream.uv_offset,
+                                    channel: metallic_channel,
+                                    default_value: metallic_factor,
+                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+            layer.metallic      = metallic_tex;
+
+            cavity_tex          = lookup_triplanar_channel(
+                                    tex: tCavity,
+                                    uv_scale: uv_stream.uv_scale,
+                                    uv_offset: uv_stream.uv_offset,
+                                    channel: cavity_channel,
+                                    default_value: 1.f,
+                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+            layer.cavity        = cavity_tex;
+
+            roughness_tex       = lookup_triplanar_channel(
+                                    tex: tRoughness,
+                                    uv_scale: uv_stream.uv_scale,
+                                    uv_offset: uv_stream.uv_offset,
+                                    channel: roughness_channel,
+                                    default_value: roughness_factor,
+                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+            layer.roughness     = histogram_range( roughness_tex, roughness_range_position.x, roughness_range_position.y );
+
+            normal_tex          = lookup_triplanar_normal(
+                                    tex: tNormal,
+                                    normal_scale: normal_scale,
+                                    uv_scale: uv_stream.uv_scale,
+                                    uv_offset: uv_stream.uv_offset,
+                                    flip_green: normal_flip_green,
+                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+            layer.normal        = normal_tex;
+
+            return layer;
+    }
+}
+
+export material_layer blend_material_layer(
+    bool enable_blend,
+    material_layer layer_1,
+    material_layer layer_2,
+    float blend_factor
+)
+{
+    if ( !enable_blend )
+        return layer_1;
+
+    material_layer layer;
+    layer.base_color      = math::lerp( layer_1.base_color,        layer_2.base_color,  blend_factor );
+    layer.metallic        = math::lerp( layer_1.metallic,          layer_2.metallic,    blend_factor );
+    layer.cavity          = math::lerp( layer_1.cavity,            layer_2.cavity,      blend_factor );
+    layer.specular_weight = math::lerp( layer_1.specular_weight,   layer_2.specular_weight, blend_factor );
+    layer.roughness       = math::lerp( layer_1.roughness,         layer_2.roughness,   blend_factor );
+    layer.normal          = math::lerp( layer_1.normal,            layer_2.normal,      blend_factor );
+    layer.normal          = math::normalize( layer.normal );
+    return layer;
+}
+
+export coat_layer initialize_coat_layer(
+    uv_set_settings     uv_stream                   = uv_set_settings(),
+    uv_set_settings     uv_set_weight               = uv_set_settings(),
+    bool                enable_coat                 = false,
+    uniform texture_2d  tCoatMask                   = texture_2d(),
+    uniform texture_2d  tCoatNormal                 = texture_2d(),
+    uniform texture_2d  tCoatRoughness              = texture_2d(),
+    channel_mode        coat_weight_channel         = r,
+    float               coat_weight                 = 1.f,
+    color               coat_color                  = color(1.f),
+    channel_mode        coat_roughness_channel      = r,
+    float               coat_roughness_factor       = 1.f,
+    uniform float       coat_ior                    = 1.5f,
+    float               coat_anisotropy             = 0.f,
+    float               coat_anisotropy_rotation    = 0.f,
+    float               coat_affect_color           = 0.f,
+    float               coat_affect_roughness       = 0.f,
+    uniform bool        coat_flip_green             = false
+)
+{
+    coat_layer layer;
+    if ( enable_coat )
+    {
+        layer.coat_weight               = coat_weight;
+        layer.coat_color                = coat_color;
+        layer.coat_ior                  = coat_ior;
+        layer.coat_anisotropy           = coat_anisotropy;
+        layer.coat_anisotropy_rotation  = coat_anisotropy_rotation;
+        layer.coat_affect_color         = coat_affect_color;
+        layer.coat_affect_roughness     = coat_affect_roughness;
+
+        switch ( uv_set_weight.mode )
+        {
+            case texture_coord_0:
+                layer.coat_weight = math::min( tex::texture_isvalid( tCoatMask ) ?
+                                                lookup_float4_channel( tex: tCoatMask,
+                                                                        coord: float2( state::texture_coordinate(0).x,
+                                                                                    state::texture_coordinate(0).y ) *
+                                                                                uv_set_weight.uv_scale +
+                                                                                uv_set_weight.uv_offset,
+                                                                        channel: coat_weight_channel,
+                                                                        default_value: 1.f ) : 1.f, coat_weight );
+                break;
+
+            case triplanar:
+                layer.coat_weight = math::min( lookup_triplanar_channel( tex: tCoatMask,
+                                                                         uv_scale: uv_set_weight.uv_scale,
+                                                                         uv_offset: uv_set_weight.uv_offset,
+                                                                         channel: coat_weight_channel,
+                                                                         default_value: 1.f,
+                                                                         triplanar_blend_range: uv_set_weight.triplanar_blend_range ), coat_weight );
+                break;
+        }
+
+        if ( layer.coat_weight > 0 )
+        {
+            switch ( uv_stream.mode )
+            {
+                case texture_coord_0:
+                    layer.coat_normal       = tex::texture_isvalid( tCoatNormal ) ?
+                                                        OmniSurface::OmniImage::tangent_space_normal_lookup_2(
+                                                            texture: tCoatNormal,
+                                                            use_uv_coords: true,
+                                                            uv_coords: float2( state::texture_coordinate(0).x,
+                                                                            state::texture_coordinate(0).y ) *
+                                                                            uv_stream.uv_scale +
+                                                                            uv_stream.uv_offset,
+                                                            tangent_space_flip_g_channel: coat_flip_green
+
+                                                        ) : state::normal();
+
+                    layer.coat_roughness    = lookup_float4_channel( tex: tCoatRoughness,
+                                                                    coord: float2( state::texture_coordinate(0).x,
+                                                                                state::texture_coordinate(0).y ) *
+                                                                            uv_stream.uv_scale +
+                                                                            uv_stream.uv_offset,
+                                                                    channel: coat_roughness_channel,
+                                                                    default_value: coat_roughness_factor );
+                    break;
+
+                case triplanar:
+                    layer.coat_normal       = lookup_triplanar_normal( tex: tCoatNormal,
+                                                                       uv_scale: uv_stream.uv_scale,
+                                                                       uv_offset: uv_stream.uv_offset,
+                                                                       flip_green: coat_flip_green,
+                                                                       triplanar_blend_range: uv_stream.triplanar_blend_range );
+
+                    layer.coat_roughness    = lookup_triplanar_channel( tex: tCoatRoughness,
+                                                                        uv_scale: uv_stream.uv_scale,
+                                                                        uv_offset: uv_stream.uv_offset,
+                                                                        channel: coat_roughness_channel,
+                                                                        default_value: coat_roughness_factor,
+                                                                        triplanar_blend_range: uv_stream.triplanar_blend_range );
+                    break;
+            }
+        }
+        return layer;
+    }
+
+    return layer;
+}
+
+export flake_layer initialize_flake_layer(
+    bool  enable_flakes               = false,
+    float flakes_weight               = 1.f,
+    float flakes_size                 = 0.6f,
+    float flakes_density              = 0.31f,
+    float flakes_spread               = 0.54f
+)
+{
+    flake_layer layer;
+    if ( enable_flakes )
+    {
+        if ( flakes_weight > 0.f )
+        {
+            float scale_transform    = state::transform_scale(state::coordinate_object, state::coordinate_world, 1.f);
+            float3 flake_coordinates = state::position() * state::meters_per_scene_unit() * scale_transform;
+            float flake_scale        = 1492.537313432835f / flakes_size;
+            layer.normal             = float3( flake_normal(
+                                                    flake: flake_noise( position: flake_coordinates * flake_scale,
+                                                                        flake_probability: flakes_density * flakes_density ),
+                                                    spread: flakes_spread ).carrier.x,
+                                                flake_normal(
+                                                    flake: flake_noise( position: flake_coordinates * flake_scale,
+                                                                        flake_probability: flakes_density * flakes_density ),
+                                                    spread: flakes_spread ).carrier.y,
+                                                flake_normal(
+                                                    flake: flake_noise( position: flake_coordinates * flake_scale,
+                                                                        flake_probability: flakes_density * flakes_density ),
+                                                    spread: flakes_spread ).carrier.z );
+            float flake_mask      = flake_noise( position: flake_coordinates * flake_scale,
+                                                    flake_probability: flakes_density * flakes_density ).priority > 0.001 ? 1.f : 0.f;
+            layer.roughness       = 1.f;
+            layer.weight          = flake_mask;
+        }
+    }
+    return layer;
+}
+
+export anisotropy initialize_anisotropy(
+    uv_set_settings     uv_stream                   = uv_set_settings(),
+    bool                enable_anisotropy           = false,
+    float               anisotropy_roughness_u      = 1.f,
+    float               anisotropy_roughness_v      = 0.25f,
+    uniform texture_2d  tAnisotropyRotation         = texture_2d(),
+    channel_mode        anisotropy_channel          = r,
+    float               anisotropy_rotation         = 1.f
+
+)
+{
+    anisotropy aniso;
+
+    if ( enable_anisotropy )
+    {
+        aniso.anisotropy_roughness_u = anisotropy_roughness_u;
+        aniso.anisotropy_roughness_v = anisotropy_roughness_v;
+
+        switch ( uv_stream.mode )
+        {
+            case texture_coord_0:
+                aniso.anisotropy_rotation = lookup_float4_channel( tex: tAnisotropyRotation,
+                                                                        coord: float2( state::texture_coordinate(0).x,
+                                                                                       state::texture_coordinate(0).y ) *
+                                                                                uv_stream.uv_scale +
+                                                                                uv_stream.uv_offset,
+                                                                        channel: anisotropy_channel,
+                                                                        default_value: anisotropy_rotation );
+                return aniso;
+
+            case triplanar:
+                aniso.anisotropy_rotation = lookup_triplanar_channel( tex: tAnisotropyRotation,
+                                                                            uv_scale: uv_stream.uv_scale,
+                                                                            uv_offset: uv_stream.uv_offset,
+                                                                            channel: anisotropy_channel,
+                                                                            default_value: anisotropy_rotation,
+                                                                            triplanar_blend_range: uv_stream.triplanar_blend_range );
+                return aniso;
+        }
+    }
+
+    return aniso;
+}
+
+export float3 detail_normal_combine(
+    uv_set_settings     uv_set_normal         = uv_set_settings(),
+    uv_set_settings     uv_set_weight         = uv_set_settings(),
+    bool                enable_detail_normal  = false,
+    float3              base_normal           = state::normal(),
+    uniform texture_2d  tDetailNormal         = texture_2d(),
+    uniform texture_2d  tDetailNormalWeight   = texture_2d(),
+    channel_mode        detail_normal_channel = r,
+    uniform float       detail_normal_scale   = 1.f,
+    uniform bool        detail_normal_flip_green = false
+)
+{
+    float3 final_normal = base_normal;
+
+    if ( enable_detail_normal )
+    {
+        float3 detail_normal;
+        switch ( uv_set_normal.mode )
+        {
+            case texture_coord_0:
+                detail_normal = tex::texture_isvalid( tDetailNormal ) ?
+                                                OmniSurface::OmniImage::tangent_space_normal_lookup_2(
+                                                    texture: tDetailNormal,
+                                                    use_uv_coords: true,
+                                                    uv_coords: float2( state::texture_coordinate(0).x,
+                                                                       state::texture_coordinate(0).y ) *
+                                                                       uv_set_normal.uv_scale +
+                                                                       uv_set_normal.uv_offset,
+                                                    tangent_space_factor: detail_normal_scale,
+                                                    tangent_space_flip_g_channel: detail_normal_flip_green
+                                                ) : state::normal();
+                break;
+
+            case triplanar:
+                detail_normal = lookup_triplanar_normal( tex: tDetailNormal,
+                                                         uv_scale: uv_set_normal.uv_scale,
+                                                         uv_offset: uv_set_normal.uv_offset,
+                                                         normal_scale: detail_normal_scale,
+                                                         flip_green: detail_normal_flip_green,
+                                                         triplanar_blend_range: uv_set_normal.triplanar_blend_range );
+                break;
+        }
+
+        float detail_normal_weight;
+        switch ( uv_set_weight.mode )
+        {
+            case texture_coord_0:
+                detail_normal_weight = lookup_float4_channel( tex: tDetailNormalWeight,
+                                                                coord: float2( state::texture_coordinate(0).x,
+                                                                               state::texture_coordinate(0).y ) *
+                                                                        uv_set_weight.uv_scale +
+                                                                        uv_set_weight.uv_offset,
+                                                                channel: detail_normal_channel,
+                                                                default_value: 1.f );
+                break;
+
+            case triplanar:
+                detail_normal_weight = lookup_triplanar_channel( tex: tDetailNormalWeight,
+                                                                    uv_scale: uv_set_weight.uv_scale,
+                                                                    uv_offset: uv_set_weight.uv_offset,
+                                                                    channel: detail_normal_channel,
+                                                                    default_value: 1.f,
+                                                                    triplanar_blend_range: uv_set_weight.triplanar_blend_range );
+                break;
+        }
+
+        final_normal = ::nvidia::core_definitions::blend_normals(
+            base_normal: base_normal,
+            base_normal_weight: 1.f,
+            detail_normal: detail_normal,
+            detail_normal_weight: detail_normal_weight
+        );
+        return final_normal;
+
+    }
+
+    return final_normal;
+}
+
+export color emission(
+    uv_set_settings     uv_stream               = uv_set_settings(),
+    uv_set_settings     uv_stream_mask          = uv_set_settings(),
+    bool                enable_emission         = false,
+    uniform texture_2d  tEmission               = texture_2d(),
+    uniform texture_2d  tEmissionMask           = texture_2d(),
+    color               emission_color          = color(1.f)
+)
+{
+    color emission = color( 0.f );
+    if ( enable_emission )
+    {        
+        switch ( uv_stream.mode )
+        {
+            case texture_coord_0:
+                emission = tex::texture_isvalid( tEmission ) ?
+                                    tex::lookup_color( tex: tEmission,
+                                                       coord: float2( state::texture_coordinate(0).x,
+                                                                      state::texture_coordinate(0).y ) *
+                                                              uv_stream.uv_scale +
+                                                              uv_stream.uv_offset
+                                    ) : color( 1.f );
+                emission *= emission_color;
+                break;
+
+            case triplanar:
+                emission = lookup_triplanar_color( tex: tEmission,
+                                                    uv_scale: uv_stream.uv_scale,
+                                                    uv_offset: uv_stream.uv_offset,
+                                                    default_value: emission_color,
+                                                    triplanar_blend_range: uv_stream.triplanar_blend_range );
+                emission *= emission_color;
+                break;
+        }
+
+        float mask = 1.f;
+        switch ( uv_stream_mask.mode )
+        {            
+            case texture_coord_0:
+                mask = tex::texture_isvalid( tEmissionMask ) ?
+                                    tex::lookup_float( tex: tEmissionMask,
+                                                       coord: float2( state::texture_coordinate(0).x,
+                                                                      state::texture_coordinate(0).y ) *
+                                                              uv_stream_mask.uv_scale +
+                                                              uv_stream_mask.uv_offset
+                                    ) : 1.f;
+                emission *= mask;
+                break;
+
+            case triplanar:
+                mask = lookup_triplanar_channel( tex: tEmissionMask,
+                                                    uv_scale: uv_stream_mask.uv_scale,
+                                                    uv_offset: uv_stream_mask.uv_offset,
+                                                    channel: r,
+                                                    default_value: 1.f,
+                                                    triplanar_blend_range: uv_stream_mask.triplanar_blend_range );
+                emission *= mask;
+                break;
+        }
+    }
+
+    return emission;
+}
+
+export float opacity(
+    uv_set_settings    uv_stream               = uv_set_settings(),
+    bool               enable_opacity          = false,
+    uniform texture_2d tOpacity                = texture_2d(),
+    uniform texture_2d tBaseColor              = texture_2d(),
+    channel_mode       opacity_channel         = a
+)
+{
+    float final_opacity = 1.f;
+
+    if ( enable_opacity )
+    {
+        switch ( uv_stream.mode )
+        {
+            case texture_coord_0:
+                final_opacity = tex::texture_isvalid( tOpacity ) ?
+                                    lookup_float4_channel( tex: tOpacity,
+                                                           coord: float2( state::texture_coordinate(0).x,
+                                                                          state::texture_coordinate(0).y ) *
+                                                                          uv_stream.uv_scale +
+                                                                          uv_stream.uv_offset,
+                                                                channel: opacity_channel,
+                                                                default_value: 1.f ) :
+                                    tex::texture_isvalid( tBaseColor ) ?
+                                        lookup_float4_channel( tex: tBaseColor,
+                                                                coord: float2( state::texture_coordinate(0).x,
+                                                                               state::texture_coordinate(0).y ) *
+                                                                               uv_stream.uv_scale +
+                                                                               uv_stream.uv_offset,
+                                                                channel: opacity_channel,
+                                                                default_value: 1.f ) : 1.f;
+                return final_opacity;
+
+            case triplanar:
+                final_opacity = tex::texture_isvalid( tOpacity ) ?
+                                    lookup_triplanar_channel( tex: tOpacity,
+                                                              uv_scale: uv_stream.uv_scale,
+                                                              uv_offset: uv_stream.uv_offset,
+                                                              channel: a,
+                                                              default_value: 1.f,
+                                                              triplanar_blend_range: uv_stream.triplanar_blend_range ) :
+                                    tex::texture_isvalid( tBaseColor ) ?
+                                        lookup_triplanar_channel( tex: tBaseColor,
+                                                                  uv_scale: uv_stream.uv_scale,
+                                                                  uv_offset: uv_stream.uv_offset,
+                                                                  channel: a,
+                                                                  default_value: 1.f,
+                                                                  triplanar_blend_range: uv_stream.triplanar_blend_range  ) : 1.f;
+                return final_opacity;
+        }
+    }
+
+    return final_opacity;
+}
+
+export float blend_factor(
+    uv_set_settings    uv_stream                = uv_set_settings(),
+    bool               enable_blend_factor      = false,
+    blend_source       blend_factor_source      = texture,
+    uniform texture_2d tBlendFactor             = texture_2d(),
+    channel_mode       blend_factor_channel     = r,
+    float3             blend_direction          = float3( 0.f, 1.f, 0.f),
+    bool               blend_axis_obect_space   = false,
+    axis_mode          blend_axis               = y,
+    float              blend_axis_scale         = 1.f,
+    float              blend_axis_offset        = 0.f,
+    uniform string     blend_primvar_string     = string(),
+    float              blend_threshold          = 0.33f,
+    uv_set_settings    uv_set_detail            = uv_set_settings(),
+    uniform texture_2d tDetailBlendFactor       = texture_2d(),
+    channel_mode       detail_blend_factor_channel = r,
+    float              blend_factor_override    = 0.f
+)
+{
+    float final_blend_factor = 0.f;
+
+    if ( enable_blend_factor )
+    {
+        if ( blend_factor_override > 0.f )
+            return blend_factor_override;
+
+        float detail_blend = 0.5f;
+        if ( tex::texture_isvalid( tDetailBlendFactor ) )
+        {
+            switch ( uv_set_detail.mode )
+            {
+                case texture_coord_0:
+                    detail_blend = lookup_float4_channel( tex: tDetailBlendFactor,
+                                                            coord: float2( state::texture_coordinate(0).x,
+                                                                           state::texture_coordinate(0).y ) *
+                                                                           uv_set_detail.uv_scale +
+                                                                           uv_set_detail.uv_offset,
+                                                            channel: detail_blend_factor_channel,
+                                                            default_value: 1.f );
+                    break;
+
+                case triplanar:
+                    detail_blend = lookup_triplanar_channel( tex: tDetailBlendFactor,
+                                                             uv_scale: uv_set_detail.uv_scale,
+                                                             uv_offset: uv_set_detail.uv_offset,
+                                                             channel: detail_blend_factor_channel,
+                                                             default_value: 1.f,
+                                                             triplanar_blend_range: uv_set_detail.triplanar_blend_range  );
+                    break;
+            }
+        }
+
+        switch (blend_factor_source)
+        {
+            case texture:
+                switch ( uv_stream.mode )
+                {
+                    case texture_coord_0:
+                        final_blend_factor = lookup_float4_channel( tex: tBlendFactor,
+                                                                        coord: float2( state::texture_coordinate(0).x,
+                                                                                    state::texture_coordinate(0).y ) *
+                                                                                    uv_stream.uv_scale +
+                                                                                    uv_stream.uv_offset,
+                                                                        channel: blend_factor_channel,
+                                                                        default_value: 1.f );
+                        return threshold_blend( input:     final_blend_factor,
+                                                height:    detail_blend,
+                                                threshold: blend_threshold );
+
+                    case triplanar:
+                        final_blend_factor = lookup_triplanar_channel( tex: tBlendFactor,
+                                                                        uv_scale: uv_stream.uv_scale,
+                                                                        uv_offset: uv_stream.uv_offset,
+                                                                        channel: blend_factor_channel,
+                                                                        default_value: 1.f,
+                                                                        triplanar_blend_range: uv_stream.triplanar_blend_range );
+                        return threshold_blend( input:     final_blend_factor,
+                                                height:    detail_blend,
+                                                threshold: blend_threshold );
+                }
+
+            case direction:
+                final_blend_factor = math::dot( state::normal(), blend_direction );
+                return threshold_blend( input:     final_blend_factor,
+                                        height:    detail_blend,
+                                        threshold: blend_threshold );
+
+            case axis:
+                switch ( blend_axis )
+                {
+                    case x:
+                        final_blend_factor = state::position().x;
+                        break;
+                    case x_invert:
+                        final_blend_factor = -state::position().x;
+                        break;
+                    case y:
+                        final_blend_factor = state::position().y;
+                        break;
+                    case y_invert:
+                        final_blend_factor = -state::position().y;
+                        break;
+                    case z:
+                        final_blend_factor = state::position().z;
+                        break;
+                    case z_invert:
+                        final_blend_factor = -state::position().z;
+                        break;
+                }
+
+                final_blend_factor *= state::meters_per_scene_unit();
+                if ( blend_axis_obect_space )
+                {
+                    float object_axis;
+                    switch ( blend_axis )
+                    {
+                        case x:
+                            object_axis = state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).x;
+                            break;
+                        case x_invert:
+                            object_axis = -state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).x;
+                            break;
+                        case y:
+                            object_axis = state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).y;
+                            break;
+                        case y_invert:
+                            object_axis = -state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).y;
+                            break;
+                        case z:
+                            object_axis = state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).z;
+                            break;
+                        case z_invert:
+                            object_axis = -state::transform_point( state::coordinate_object, state::coordinate_world, float3( 0 ) ).z;
+                            break;
+                    }
+                    object_axis           *= state::meters_per_scene_unit();
+                    final_blend_factor    -= object_axis;
+                }
+                final_blend_factor = math::saturate( final_blend_factor * blend_axis_scale - blend_axis_offset );
+                return math::saturate( 1.f - threshold_blend( input:     final_blend_factor,
+                                                              height:    detail_blend,
+                                                              threshold: blend_threshold ) );
+
+            case primvar:
+                final_blend_factor = scene::data_lookup_float( blend_primvar_string, 0.f );
+                return threshold_blend( input:     final_blend_factor,
+                                        height:    detail_blend,
+                                        threshold: blend_threshold );
+        }
+    }
+    return final_blend_factor;
+}
+
+export float accumulate_coat_weight(
+    layer_order layer_1_order = above,
+    float layer_1_weight      = 0.f,
+    layer_order layer_2_order = above,
+    float layer_2_weight      = 0.f
+
+)
+{
+    float final_coat_weight = 0.f;
+
+    switch ( layer_1_order )
+    {
+        case above:
+            final_coat_weight += layer_1_weight;
+            break;
+        case below:
+            break;
+    }
+
+    switch ( layer_2_order )
+    {
+        case above:
+            final_coat_weight += layer_2_weight;
+            break;
+
+        case below:
+            break;
+    }
+
+    return 1.f - final_coat_weight;
+}
+
+export material OmniUber_Automotive(
+    //Basic Inputs - 100
+    color diffuse_reflection_color = color(0.463f, 0.725f, 0.f) [[
+        anno::display_name("Base Color"),
+        anno::ui_order(100)
+    ]],
+
+    float metalness = float(0.f) [[
+        anno::display_name("Metalness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(101)
+    ]],
+
+    float roughness_u = float(1.f) [[
+        anno::display_name("Roughness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(103)
+    ]],    
+
+    //Basic Clear Coat - 200
+    bool enable_coat = true [[
+        anno::display_name("Enable Clear Coat"),
+        anno::in_group("Clear Coat"),
+        anno::ui_order(200)
+    ]],
+
+    color coat_color = color(1.f) [[
+        anno::display_name("Clear Coat Color Tint"),
+        anno::in_group("Clear Coat"),
+        anno::ui_order(201)
+    ]],
+
+    float coat_roughness = float(0.f) [[
+        anno::display_name("Clear Coat Roughness"),
+        anno::in_group("Clear Coat"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(202)
+    ]],
+
+    //Flakes - 300
+    bool enable_flakes = true [[
+        anno::display_name("Enable Flakes"),
+        anno::in_group("Flakes"),
+        anno::ui_order(300)
+    ]],
+
+    color flake_color = color(1.f) [[
+        anno::display_name("Flake Color"),
+        anno::in_group("Flakes"),
+        anno::ui_order(301)
+    ]],
+
+    float flake_size = float(0.125f) [[
+        anno::display_name("Flake Size"),
+        anno::in_group("Flakes"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(302)
+    ]],
+
+    float flakes_density = float(0.25f) [[
+        anno::display_name("Flake Density"),
+        anno::in_group("Flakes"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(303)
+    ]],
+
+    float flakes_spread = float(0.15f) [[
+        anno::display_name("Flake Spread"),
+        anno::in_group("Flakes"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(304)
+    ]],
+
+    float flake_roughness = float(0.05f) [[
+        anno::display_name("Flake Roughness"),
+        anno::in_group("Flakes"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(305)
+    ]],
+
+    //Advanced
+    //Base Layer - 1000
+    uv_set_selection uv_set_layer_0 = uv_set_1 [[
+        anno::display_name("Base UV Set"),
+        anno::in_group("Advanced", "Base Layer"),
+        anno::ui_order(1000)
+    ]],
+
+    uniform texture_2d base_color_image = texture_2d() [[
+        anno::display_name("Base Color Image"),
+        anno::in_group("Advanced", "Base Layer", "Base Color"),
+        anno::ui_order(1001)
+    ]],
+
+    float base_color_scale = 1.f [[
+        anno::display_name("Base Color Multiply"),
+        anno::in_group("Advanced", "Base Layer", "Base Color"),
+        anno::soft_range(0.0f, 2.0f),
+        anno::ui_order(1003)
+    ]],
+
+    float base_color_offset = 0.f [[
+        anno::display_name("Base Color Add"),
+        anno::in_group("Advanced", "Base Layer", "Base Color"),
+        anno::soft_range(-1.0f, 1.0f),
+        anno::ui_order(1004)
+    ]],
+
+    float base_color_desaturation = float(0.f) [[
+        anno::display_name("Base Color Desaturation"),
+        anno::in_group("Advanced", "Base Layer", "Base Color"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(1005)
+    ]],
+
+    uniform texture_2d metalness_image = texture_2d() [[
+        anno::display_name("Metalness Image"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Metalness"),
+        anno::ui_order(1100)
+    ]],
+
+    uniform channel_mode metalness_channel = b [[
+        anno::display_name("Metalness Channel"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Metalness"),
+        anno::ui_order(1101)
+    ]],
+
+    float specular_reflection_weight = float(1.0) [[
+        anno::display_name("Specular Weight"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Specular"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(1302)
+    ]],
+
+    color specular_reflection_color = color(1.f) [[
+        anno::display_name("Specular Color"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Specular"),
+        anno::hidden(),
+        anno::ui_order(1000)
+    ]],
+
+    uniform texture_2d cavity_image = texture_2d() [[
+        anno::display_name("Specular Cavity Image"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Specular"),
+        anno::ui_order(1300)
+    ]],
+
+    uniform channel_mode cavity_channel = r [[
+        anno::display_name("Specular Cavity Channel"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Specular"),
+        anno::ui_order(1301)
+    ]],
+
+    uniform texture_2d roughness_image = texture_2d() [[
+        anno::display_name("Roughness Image"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Roughness"),
+        anno::ui_order(1200)
+    ]],
+
+    uniform channel_mode roughness_channel = g [[
+        anno::display_name("Roughness Channel"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Roughness"),
+        anno::ui_order(1201)
+    ]],
+
+    float2 roughness_range_position = float2( 1.f, 0.5f ) [[
+        anno::display_name("Roughness Range Position"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Roughness"),
+        anno::hard_range(float2(0.0f), float2(1.0f)),
+        anno::ui_order(1203)
+    ]],
+
+    uniform texture_2d normal_image = texture_2d() [[
+        anno::display_name("Normal Image"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Normal"),
+        anno::usage("normal"),
+        anno::ui_order(1400)
+    ]],
+
+    uniform bool normal_flip_green = true [[
+        anno::display_name("Normal Flip Green"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Normal"),
+        anno::ui_order(1401)
+    ]],
+
+    uniform float normal_scale = float(1.f) [[
+        anno::display_name("Normal Scale"),
+        anno::in_group("Advanced", "Base Layer", "Base Layer Normal"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(1402)
+    ]],
+
+    //Layer 1 - 4000
+    bool enable_layer_1 = false [[
+        anno::display_name("Enable Layer 1"),
+        anno::in_group("Advanced", "Layer 1"    ),
+        anno::ui_order(4000)
+    ]],
+
+    uv_set_selection uv_set_layer_1 = uv_set_1 [[
+        anno::display_name("Layer 1 UV Set"),
+        anno::in_group("Advanced", "Layer 1"),
+        anno::ui_order(4001)
+    ]],
+    
+    layer_order layer_1_order = above [[
+        anno::display_name("Layer 1 Composite Order"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::ui_order(4002)
+    ]],
+
+    //Layer 1 Base Color - 4100
+    uniform texture_2d layer_1_base_color_image = texture_2d() [[
+        anno::display_name("Layer 1 Base Color Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Base Color"),
+        anno::ui_order(4100)
+    ]],
+
+    color layer_1_diffuse_reflection_color = color(1.f) [[
+        anno::display_name("Layer 1 Base Color Tint"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Base Color"),
+        anno::ui_order(4101)
+    ]],
+
+    float layer_1_base_color_offset = float(0.f) [[
+        anno::display_name("Layer 1 Base Color Offset"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Base Color"),
+        anno::soft_range(-1.0f, 1.0f),
+        anno::ui_order(4102)
+    ]],
+
+    float layer_1_base_color_scale = float(1.f) [[
+        anno::display_name("Layer 1 Base Color Scale"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Base Color"),
+        anno::soft_range(0.0f, 2.0f),
+        anno::ui_order(4103)
+    ]],
+
+    float layer_1_base_color_desaturation = float(0.f) [[
+        anno::display_name("Layer 1 Base Color Desaturation"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Base Color"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(4104)
+    ]],
+
+    //Layer 1 Specular - 4200
+    uniform texture_2d layer_1_roughness_image = texture_2d() [[
+        anno::display_name("Layer 1 Roughness Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Roughness"),
+        anno::ui_order(4300)
+    ]],
+
+    uniform channel_mode layer_1_roughness_channel = g [[
+        anno::display_name("Layer 1 Roughness Channel"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Roughness"),
+        anno::ui_order(4301)
+    ]],
+
+    float layer_1_roughness_u = float(1.f) [[
+        anno::display_name("Layer 1 Roughness"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Roughness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(4302)
+    ]],
+
+    float2 layer_1_roughness_range_position = float2( 1.f, 0.5f ) [[
+        anno::display_name("Layer 1 Roughness Range Position"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Roughness"),
+        anno::hard_range(float2(0.0f), float2(1.0f)),
+        anno::ui_order(4303)
+    ]],
+
+    uniform texture_2d layer_1_metalness_image = texture_2d() [[
+        anno::display_name("Layer 1 Metalness Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Metalness"),
+        anno::ui_order(4200)
+    ]],
+
+    uniform channel_mode layer_1_metalness_channel = b [[
+        anno::display_name("Layer 1 Metalness Channel"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Metalness"),
+        anno::ui_order(4201)
+    ]],
+
+    float layer_1_metalness = float(1.f) [[
+        anno::display_name("Layer 1 Metalness"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Metalness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(4202)
+    ]],
+
+    //Layer 1 Specular - 4400
+    uniform texture_2d layer_1_cavity_image = texture_2d() [[
+        anno::display_name("Layer 1 Specular Cavity Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Specular"),
+        anno::ui_order(4400)
+    ]],
+
+    uniform channel_mode layer_1_cavity_channel = r [[
+        anno::display_name("Layer 1 Specular Cavity Channel"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Specular"),
+        anno::ui_order(4401)
+    ]],
+
+    float layer_1_specular_reflection_weight = float(1.f) [[
+        anno::display_name("Layer 1 Specular Reflection Weight"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Specular"),
+        anno::ui_order(4402)
+    ]],
+
+    //Layer 1 Normal - 4500
+    uniform texture_2d layer_1_normal_image = texture_2d() [[
+        anno::display_name("Layer 1 Normal Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Normal"),
+        anno::usage("normal"),
+        anno::ui_order(4500)
+    ]],
+
+    uniform bool layer_1_normal_flip_green = true [[
+        anno::display_name("Layer 1 Normal Flip Green"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Normal"),
+        anno::ui_order(4501)
+    ]],
+
+    uniform float layer_1_normal_scale = float(1.f) [[
+        anno::display_name("Layer 1 Normal Scale"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Normal"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(4502)
+    ]],
+
+    //Layer 1 Weight - 4600
+    blend_source layer_1_blend_source = texture [[
+        anno::display_name("Layer 1 Mask Source"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4600)
+    ]],
+
+    uv_set_selection layer_1_uv_set_blend_factor = uv_set_1 [[
+        anno::display_name("Layer 1 Mask Image UV Stream"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4630)
+    ]],
+
+    uniform texture_2d layer_1_blend_splatmap = texture_2d() [[
+        anno::display_name("Layer 1 Mask Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4630)
+    ]],
+
+    uniform channel_mode layer_1_blend_splatmap_channel = r [[
+        anno::display_name("Layer 1 Mask Image Channel"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4630)
+    ]],
+
+    float3 layer_1_blend_direction = float3(0.f, 1.f, 0.f) [[
+        anno::display_name("Layer 1 Mask Direction"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4620)
+    ]],
+
+    axis_mode layer_1_blend_axis = y [[
+        anno::display_name("Layer 1 Mask Axis"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4611)
+    ]],
+
+    bool layer_1_blend_object_space = true [[
+        anno::display_name("Layer 1 Mask Object Space"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4610)
+    ]],
+
+    float layer_1_blend_scale = float(1.f) [[
+        anno::display_name("Layer 1 Mask Axis Scale"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(4612)
+    ]],
+
+    float layer_1_blend_offset = float(0.f) [[
+        anno::display_name("Layer 1 Mask Axis Offset"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::soft_range(-1.0f, 1.0f),
+        anno::ui_order(4613)
+    ]],
+
+    uniform string layer_1_blend_primvar_name = string() [[
+        anno::display_name("Layer 1 Mask Primvar Name"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4600)
+    ]],
+
+    uv_set_selection layer_1_uv_set_detail = uv_set_1 [[
+        anno::display_name("Layer 1 Detail UV Stream"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4640)
+    ]],
+
+    uniform texture_2d layer_1_blend_detail_image = texture_2d() [[
+        anno::display_name("Layer 1 Detail Image"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4641)
+    ]],
+
+    uniform channel_mode layer_1_blend_detail_image_channel = r [[
+        anno::display_name("Layer 1 Detail Image Channel"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::ui_order(4642)
+    ]],
+
+    float layer_1_blend_threshold = float(0.33f) [[
+        anno::display_name("Layer 1 Mask Threshold"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(4601)
+    ]],
+
+    float layer_1_blend_factor_override = float(0.f) [[
+        anno::display_name("Layer 1 Mask Factor Override"),
+        anno::in_group("Advanced", "Layer 1", "Layer 1 Mask"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::hidden(),
+        anno::ui_order(4600)
+    ]],
+
+    //Layer 2 - 5000
+    bool enable_layer_2 = false [[
+        anno::display_name("Enable Layer 2"),
+        anno::in_group("Advanced", "Layer 2"),
+        anno::ui_order(5000)
+    ]],
+
+    layer_order layer_2_order = above [[
+        anno::display_name("Layer 2 Composite Order"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::ui_order(5001)
+    ]],
+
+    uv_set_selection uv_set_layer_2 = uv_set_1 [[
+        anno::display_name("Layer 2 UV Set"),
+        anno::in_group("Advanced", "Layer 2"),
+        anno::ui_order(5002)
+    ]],
+
+    //Layer 2 - Base Color - 5100
+    uniform texture_2d layer_2_base_color_image = texture_2d() [[
+        anno::display_name("Layer 2 Base Color Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Base Color"),
+        anno::ui_order(5100)
+    ]],
+
+    color layer_2_diffuse_reflection_color = color(1.f) [[
+        anno::display_name("Layer 2 Base Color Tint"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Base Color"),
+        anno::ui_order(5101)
+    ]],
+
+    float layer_2_base_color_offset = float(0.f) [[
+        anno::display_name("Layer 2 Base Color Offset"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Base Color"),
+        anno::soft_range(-1.0f, 1.0f),
+        anno::ui_order(5102)
+    ]],
+
+    float layer_2_base_color_scale = float(1.f) [[
+        anno::display_name("Layer 2 Base Color Scale"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Base Color"),
+        anno::soft_range(0.0f, 2.0f),
+        anno::ui_order(5103)
+    ]],
+
+    float layer_2_base_color_desaturation = float(0.f) [[
+        anno::display_name("Layer 2 Base Color Desaturation"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Base Color"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(5104)
+    ]],
+
+    //Layer 2 - Metallic - 5200
+    uniform texture_2d layer_2_metalness_image = texture_2d() [[
+        anno::display_name("Layer 2 Metalness Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Metalness"),
+        anno::ui_order(5200)
+    ]],
+
+    uniform channel_mode layer_2_metalness_channel = b [[
+        anno::display_name("Layer 2 Metalness Channel"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Metalness"),
+        anno::ui_order(5201)
+    ]],
+
+    float layer_2_metalness = float(1.f) [[
+        anno::display_name("Layer 2 Metalness"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Metalness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(5202)
+    ]],
+
+    //Layer 2 - Roughness - 5300
+    uniform texture_2d layer_2_roughness_image = texture_2d() [[
+        anno::display_name("Layer 2 Roughness Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Roughness"),
+        anno::ui_order(5300)
+    ]],
+
+    uniform channel_mode layer_2_roughness_channel = g [[
+        anno::display_name("Layer 2 Roughness Channel"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Roughness"),
+        anno::ui_order(5301)
+    ]],
+
+    float layer_2_roughness_u = float(1.f) [[
+        anno::display_name("Layer 2 Roughness"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Roughness"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(5302)
+    ]],
+
+    float2 layer_2_roughness_range_position = float2( 1.f, 0.5f ) [[
+        anno::display_name("Layer 2 Roughness Range Position"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Roughness"),
+        anno::hard_range(float2(0.0f), float2(1.0f)),
+        anno::ui_order(5303)
+    ]],
+
+    //Layer 2 - Specular - 5400
+    float layer_2_specular_reflection_weight = float(1.f) [[
+        anno::display_name("Layer 2 Specular Reflection Weight"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Specular"),
+        anno::ui_order(5402)
+    ]],
+
+    uniform texture_2d layer_2_cavity_image = texture_2d() [[
+        anno::display_name("Layer 2 Specular Cavity Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Specular"),
+        anno::ui_order(5400)
+    ]],
+
+    uniform channel_mode layer_2_cavity_channel = r [[
+        anno::display_name("Layer 2 Specular Cavity Channel"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Specular"),
+        anno::ui_order(5401)
+    ]],
+
+    //Layer 2 - Normal - 5500
+    uniform texture_2d layer_2_normal_image = texture_2d() [[
+        anno::display_name("Layer 2 Normal Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Normal"),
+        anno::usage("normal"),
+        anno::ui_order(5500)
+    ]],
+
+    uniform bool layer_2_normal_flip_green = true [[
+        anno::display_name("Layer 2 Normal Flip Green"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Normal"),
+        anno::ui_order(5501)
+    ]],
+
+    uniform float layer_2_normal_scale = float(1.f) [[
+        anno::display_name("Layer 2 Normal Scale"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Normal"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(5502)
+    ]],
+
+    //Layer 2 - Weight - 5600
+    blend_source layer_2_blend_source = texture [[
+        anno::display_name("Layer 2 Mask Source"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5600)
+    ]],
+
+    uv_set_selection layer_2_uv_set_blend_factor = uv_set_2 [[
+        anno::display_name("Layer 2 Mask Image UV Stream"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5630)
+    ]],
+
+    uniform texture_2d layer_2_blend_splatmap = texture_2d() [[
+        anno::display_name("Layer 2 Mask Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5630)
+    ]],
+
+    uniform channel_mode layer_2_blend_splatmap_channel = r [[
+        anno::display_name("Layer 2 Mask Image Channel"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5630)
+    ]],
+
+    float3 layer_2_blend_direction = float3(0.f, 1.f, 0.f) [[
+        anno::display_name("Layer 2 Mask Direction"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5620)
+    ]],
+
+    axis_mode layer_2_blend_axis = y [[
+        anno::display_name("Layer 2 Mask Axis"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5611)
+    ]],
+
+    bool layer_2_blend_object_space = true [[
+        anno::display_name("Layer 2 Mask Object Space"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5610)
+    ]],
+
+    float layer_2_blend_scale = float(1.f) [[
+        anno::display_name("Layer 2 Mask Axis Scale"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(5612)
+    ]],
+
+    float layer_2_blend_offset = float(0.f) [[
+        anno::display_name("Layer 2 Mask Axis Offset"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::soft_range(-1.0f, 1.0f),
+        anno::ui_order(5613)
+    ]],
+
+    uniform string layer_2_blend_primvar_name = string() [[
+        anno::display_name("Layer 2 Mask Primvar Name"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5600)
+    ]],
+
+    uv_set_selection layer_2_uv_set_detail = uv_set_2 [[
+        anno::display_name("Layer 2 Detail UV Stream"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5640)
+    ]],
+
+    uniform texture_2d layer_2_blend_detail_image = texture_2d() [[
+        anno::display_name("Layer 2 Detail Image"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5641)
+    ]],
+
+    uniform channel_mode layer_2_blend_detail_image_channel = r [[
+        anno::display_name("Layer 2 Detail Image Channel"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::ui_order(5642)
+    ]],
+
+    float layer_2_blend_threshold = float(0.33f) [[
+        anno::display_name("Layer 2 Mask Threshold"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(5601)
+    ]],
+
+    float layer_2_blend_factor_override = float(0.f) [[
+        anno::display_name("Layer 2 Mask Factor Override"),
+        anno::in_group("Advanced", "Layer 2", "Layer 2 Mask"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::hidden(),
+        anno::ui_order(5600)
+    ]],
+
+    //UVs - 6000
+    uvs_mode uvs_mode_01 = triplanar [[
+        anno::display_name("UV Mode 1"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6100)
+    ]],
+
+    float2 uv_scale_01 = float2(1.f) [[
+        anno::display_name("UV Scale 1"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6101)
+    ]],
+
+    float2 uv_offset_01 = float2(0.f) [[
+        anno::display_name("UV Offset 1"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6102)
+    ]],
+
+    float2 uv_offset_time_01 = float2(0.f) [[
+        anno::display_name("UV Offset Time 1"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6103)
+    ]],
+
+    float uv_rotation_01 = float(0.f) [[
+        anno::display_name("UV Rotation 1"),
+        anno::hidden(),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6104)
+    ]],
+
+    float triplanar_blend_range_01 = float(0.5f) [[
+        anno::display_name("Triplanar Blend Range 1"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 1"),
+        anno::ui_order(6105),
+        anno::hard_range(0.0,1.0)
+    ]],
+
+    uvs_mode uvs_mode_02 = triplanar [[
+        anno::display_name("UV Mode 2"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6200)
+    ]],
+
+    float2 uv_scale_02 = float2(1.f) [[
+        anno::display_name("UV Scale 2"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6201)
+    ]],
+
+    float2 uv_offset_02 = float2(0.f) [[
+        anno::display_name("UV Offset 2"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6202)
+    ]],
+
+    float2 uv_offset_time_02 = float2(0.f) [[
+        anno::display_name("UV Offset Time 2"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6203)
+    ]],
+
+    float uv_rotation_02 = float(0.f) [[
+        anno::display_name("UV Rotation 2"),
+        anno::hidden(),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6204)
+    ]],
+
+    float triplanar_blend_range_02 = float(0.5f) [[
+        anno::display_name("Triplanar Blend Range 2"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 2"),
+        anno::ui_order(6205),
+        anno::hard_range(0.0,1.0)
+    ]],
+
+    uvs_mode uvs_mode_03 = triplanar [[
+        anno::display_name("UV Mode 3"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6300)
+    ]],
+
+    float2 uv_scale_03 = float2(1.f) [[
+        anno::display_name("UV Scale 3"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6301)
+    ]],
+
+    float2 uv_offset_03 = float2(0.f) [[
+        anno::display_name("UV Offset 3"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6302)
+    ]],
+
+    float2 uv_offset_time_03 = float2(0.f) [[
+        anno::display_name("UV Offset Time 3"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6303)
+    ]],
+
+    float uv_rotation_03 = float(0.f) [[
+        anno::display_name("UV Rotation 3"),
+        anno::hidden(),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6304)
+    ]],
+
+    float triplanar_blend_range_03 = float(0.5f) [[
+        anno::display_name("Triplanar Blend Range 3"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 3"),
+        anno::ui_order(6305),
+        anno::hard_range(0.0,1.0)
+    ]],
+
+    uvs_mode uvs_mode_04 = triplanar [[
+        anno::display_name("UV Mode 4"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6400)
+    ]],
+
+    float2 uv_scale_04 = float2(1.f) [[
+        anno::display_name("UV Scale 4"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6401)
+    ]],
+
+    float2 uv_offset_04 = float2(0.f) [[
+        anno::display_name("UV Offset 4"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6402)
+    ]],
+
+    float2 uv_offset_time_04 = float2(0.f) [[
+        anno::display_name("UV Offset Time 4"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6403)
+    ]],
+
+    float uv_rotation_04 = float(0.f) [[
+        anno::display_name("UV Rotation 4"),
+        anno::hidden(),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6404)
+    ]],
+
+    float triplanar_blend_range_04 = float(0.5f) [[
+        anno::display_name("Triplanar Blend Range 4"),
+        anno::in_group("Advanced", "UV Sets", "UV Set 4"),
+        anno::ui_order(6405),
+        anno::hard_range(0.0,1.0)
+    ]],
+
+    uniform bool enable_opacity = false [[
+        anno::display_name("Enable Opacity"),
+        anno::description("Enables the use of cutout opacity"),
+        anno::in_group("Advanced", "Opacity"),
+        anno::ui_order(8300)
+    ]],
+
+    uv_set_selection uv_set_opacity = uv_set_1 [[
+        anno::display_name("Opacity UV Set"),
+        anno::in_group("Advanced", "Opacity"),
+        anno::ui_order(8302)
+    ]],
+
+    //Detail Normal - 8100
+    bool enable_detail_normal = false [[
+        anno::display_name("Enable Detail Normal"),
+        anno::in_group("Advanced", "Detail Normal"),
+        anno::ui_order(8100)
+    ]],
+
+    uv_set_selection uv_set_detail_normal = uv_set_1 [[
+        anno::display_name("Detail Normal UV Set"),
+        anno::in_group("Advanced", "Detail Normal"),
+        anno::ui_order(8101)
+    ]],
+
+    uniform texture_2d detail_normal_image = texture_2d() [[
+        anno::display_name("Detail Normal Image"),
+        anno::in_group("Advanced", "Detail Normal"),
+        anno::usage("normal"),
+        anno::ui_order(8102)
+    ]],
+
+    uniform bool detail_normal_flip_green = true [[
+        anno::display_name("Detail Normal Normal Flip Green"),
+        anno::in_group("Advanced", "Detail Normal"),
+        anno::ui_order(8103)
+    ]],
+
+    uniform float detail_normal_scale = float(1.f) [[
+        anno::display_name("Detail Normal Scale"),
+        anno::in_group("Advanced", "Detail Normal"),
+        anno::ui_order(8104)
+    ]],
+
+    uv_set_selection uv_set_detail_weight = uv_set_1 [[
+        anno::display_name("Detail Normal Mask UV Set"),
+        anno::in_group("Advanced", "Detail Normal", "Mask"),
+        anno::ui_order(8105)
+    ]],    
+
+    uniform texture_2d detail_normal_weight_image = texture_2d() [[
+        anno::display_name("Detail Normal Mask Image"),
+        anno::in_group("Advanced", "Detail Normal", "Detail Normal Mask"),
+        anno::ui_order(8106)
+    ]],
+
+    uniform channel_mode detail_normal_weight_channel = r [[
+        anno::display_name("Detail Normal Mask Channel"),
+        anno::in_group("Advanced", "Detail Normal", "Detail Normal Mask"),
+        anno::ui_order(8107)
+    ]],
+
+    //Emission - 8200
+    bool enable_emission = false [[
+        anno::display_name("Enable Emission"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8200)
+    ]],
+
+    uv_set_selection uv_set_emission = uv_set_1 [[
+        anno::display_name("Emission UV Set"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8201)
+    ]],
+
+    uniform texture_2d emission_image = texture_2d() [[
+        anno::display_name("Emission Image"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8202)
+    ]],
+
+    uniform bool emission_use_temperature = false [[
+        anno::display_name("Emission Use Temperature"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8203)
+    ]],
+
+    float emission_temperature = float(6500.f) [[
+        anno::display_name("Emission Temperature (kelvin)"),
+        anno::in_group("Advanced", "Emission"),
+        anno::soft_range(0.0f, 10000.0f),
+        anno::ui_order(8204)
+    ]],
+
+    uv_set_selection uv_set_emission_mask = uv_set_1 [[
+        anno::display_name("Emission UV Set Mask"),
+        anno::in_group("Advanced", "Emission", "Emission Mask"),
+        anno::ui_order(8205)
+    ]],
+
+    color emission_color = color(1.f) [[
+        anno::display_name("Emission Color Tint"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8206)
+    ]],
+
+    uniform texture_2d emission_mask_image = texture_2d() [[
+        anno::display_name("Emission Mask Image"),
+        anno::in_group("Advanced", "Emission", "Emission Mask"),
+        anno::ui_order(8207)
+    ]],
+
+    uniform ::OmniSurface::OmniShared::emission_mode emission_mode =
+        ::OmniSurface::OmniShared::emission_lx [[
+        anno::display_name("Emission Mode"),
+        anno::in_group("Advanced", "Emission"),
+        anno::ui_order(8208)
+    ]],
+
+    float emission_intensity = float(1.0) [[
+        anno::display_name("Emission Intensity"),
+        anno::in_group("Advanced", "Emission"),
+        anno::soft_range(0.0f, 1000.0f),
+        anno::ui_order(8209)
+    ]],
+
+    //Opacity - 8300
+    uniform texture_2d opacity_image = texture_2d() [[
+        anno::display_name("Opacity Image"),
+        anno::in_group("Advanced", "Opacity"),
+        anno::ui_order(8300)
+    ]],
+
+    uniform channel_mode opacity_channel = a [[
+        anno::display_name("Opacity Channel"),
+        anno::in_group("Advanced", "Opacity"),
+        anno::ui_order(8301)
+    ]],
+
+    uniform float geometry_opacity_threshold = float(0.15f) [[
+        anno::display_name("Opacity Threshold"),
+        anno::description("If > 0, remap opacity values to 1 when >= threshold and to 0 otherwise"),
+        anno::in_group("Advanced", "Opacity"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::ui_order(8302)
+    ]],
+
+    //Anisotropy - 8400
+    bool enable_anisotropy = false [[
+        anno::display_name("Enable Anisotropy"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::ui_order(8400)
+    ]],
+
+    uv_set_selection uv_set_anisotropy = uv_set_1 [[
+        anno::display_name("Anisotropy UV Set"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::ui_order(8401)
+    ]],
+
+    uniform texture_2d anisotropic_direction_image = texture_2d() [[
+        anno::display_name("Anisotropy Direction Image"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::ui_order(8402)
+    ]],
+
+    uniform channel_mode anisotropic_direction_channel = r [[
+        anno::display_name("Anisotropy Direction Channel"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::ui_order(8403)
+    ]],
+
+    float anisotropic_direction = float(0.f) [[
+        anno::display_name("Anisotropy Rotation (radian)"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::hard_range(-1.0f, 1.0f),
+        anno::ui_order(8404)
+    ]],
+
+    float anisotropic_roughness_u = float(1.f) [[
+        anno::display_name("Anisotropy Roughness U"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(8405)
+    ]],
+
+    float anisotropic_roughness_v = float(0.25f) [[
+        anno::display_name("Anisotropy Roughness V"),
+        anno::in_group("Advanced", "Anisotropy (Path Tracing Only)"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::ui_order(8406)
+    ]],
+
+    //Advanced Clear Coat - 8500
+    uniform texture_2d coat_mask_image = texture_2d() [[
+        anno::display_name("Clear Coat Mask Image"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Mask"),
+        anno::ui_order(2401)
+    ]],
+
+    uniform channel_mode coat_mask_channel = r [[
+        anno::display_name("Clear Coat Mask Channel"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Mask"),
+        anno::ui_order(2402)
+    ]],
+
+    uniform texture_2d coat_roughness_image = texture_2d() [[
+        anno::display_name("Clear Coat Roughness Image"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Roughness"),
+        anno::ui_order(2201)
+    ]],
+
+    uniform channel_mode coat_roughness_channel = r [[
+        anno::display_name("Clear Coat Roughness Channel"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Roughness"),
+        anno::ui_order(2202)
+    ]],
+
+    uniform float coat_ior = float(1.6f) [[
+        anno::display_name("Clear Coat IOR"),
+        anno::in_group("Clear Coat"),
+        anno::soft_range(1.0f, 5.0f),
+        anno::hard_range(1.0f, limits::FLOAT_MAX),
+        anno::ui_order(2002)
+    ]],
+
+    uniform texture_2d coat_normal_image = texture_2d() [[
+        anno::display_name("Clear Coat Normal Image"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Normal"),
+        anno::usage("normal"),
+        anno::ui_order(2300)
+    ]],
+
+    uniform bool coat_normal_flip_green = true [[
+        anno::display_name("Clear Coat Normal Flip Green"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Normal"),
+        anno::ui_order(2300)
+    ]],
+
+    uv_set_selection uv_set_coat_roughness_normal = uv_set_1 [[
+        anno::display_name("Clear Coat Normal UV Set"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::ui_order(8500)
+    ]],
+
+    uv_set_selection uv_set_coat_mask = uv_set_1 [[
+        anno::display_name("Clear Coat Mask UV Set"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)", "Clear Coat Mask"),
+        anno::ui_order(2400)
+    ]],
+
+    float coat_anisotropy = float(0.f) [[
+        anno::display_name("Clear Coat Anisotropy"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::hidden()
+    ]],
+
+    float coat_anisotropy_rotation = float(0.f) [[
+        anno::display_name("Clear Coat Rotation (radian)"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::soft_range(0.0f, 1.0f),
+        anno::hidden()
+    ]],
+
+    float coat_affect_color = float(0.f) [[
+        anno::display_name("Clear Coat Affect Color"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::hidden()
+    ]],
+
+    float coat_affect_roughness = float(0.f) [[
+        anno::display_name("Clear Coat Affect Roughness"),
+        anno::in_group("Advanced", "Clear Coat (Advanced)"),
+        anno::hard_range(0.0f, 1.0f),
+        anno::hidden()
+    ]]    
+
+)
+[[
+    anno::display_name("Omni Uber Automotive"),
+    anno::author("NVIDIA Corporation"),
+    anno::key_words(string[]("generic", "surface")),
+    anno::in_group("Automotive"),
+    anno::version(0, 0, 10, "")
+]] = let {
+
+    uv_streams streams = initialize_uv_streams(
+        uvs_mode_01, uv_scale_01, uv_offset_01, uv_offset_time_01, uv_rotation_01, triplanar_blend_range_01,
+        uvs_mode_02, uv_scale_02, uv_offset_02, uv_offset_time_02, uv_rotation_02, triplanar_blend_range_02,
+        uvs_mode_03, uv_scale_03, uv_offset_03, uv_offset_time_03, uv_rotation_03, triplanar_blend_range_03,
+        uvs_mode_04, uv_scale_04, uv_offset_04, uv_offset_time_04, uv_rotation_04, triplanar_blend_range_04
+    );
+
+    float blend_factor_layer_1 = blend_factor(
+        uv_stream:              select_uv_stream( streams, layer_1_uv_set_blend_factor ),
+        enable_blend_factor:    enable_layer_1,
+        blend_factor_source:    layer_1_blend_source,
+        tBlendFactor:           layer_1_blend_splatmap,
+        blend_factor_channel:   layer_1_blend_splatmap_channel,
+        blend_direction:        layer_1_blend_direction,
+        blend_axis_obect_space: layer_1_blend_object_space,
+        blend_axis:             layer_1_blend_axis,
+        blend_axis_scale:       layer_1_blend_scale,
+        blend_axis_offset:      layer_1_blend_offset,
+        blend_primvar_string:   layer_1_blend_primvar_name,
+        blend_threshold:        layer_1_blend_threshold,
+        uv_set_detail:          select_uv_stream( streams, layer_1_uv_set_detail ),
+        tDetailBlendFactor:     layer_1_blend_detail_image,
+        detail_blend_factor_channel: layer_1_blend_detail_image_channel,
+        blend_factor_override:  layer_1_blend_factor_override
+    );
+
+    float blend_factor_layer_2 = blend_factor(
+        uv_stream:              select_uv_stream( streams, layer_2_uv_set_blend_factor ),
+        enable_blend_factor:    enable_layer_2,
+        blend_factor_source:    layer_2_blend_source,
+        tBlendFactor:           layer_2_blend_splatmap,
+        blend_factor_channel:   layer_2_blend_splatmap_channel,
+        blend_direction:        layer_2_blend_direction,
+        blend_axis_obect_space: layer_2_blend_object_space,
+        blend_axis:             layer_2_blend_axis,
+        blend_axis_scale:       layer_2_blend_scale,
+        blend_axis_offset:      layer_2_blend_offset,
+        blend_primvar_string:   layer_2_blend_primvar_name,
+        blend_threshold:        layer_2_blend_threshold,
+        uv_set_detail:          select_uv_stream( streams, layer_2_uv_set_detail ),
+        tDetailBlendFactor:     layer_2_blend_detail_image,
+        detail_blend_factor_channel: layer_2_blend_detail_image_channel,
+        blend_factor_override:  layer_2_blend_factor_override
+    );
+
+    material_layer layer_0 = initialize_material_layer(
+        uv_stream:                  select_uv_stream( streams, uv_set_layer_0 ),
+        tBaseColor:                 base_color_image,
+        base_color_tint:            diffuse_reflection_color,
+        base_color_scale:           color( base_color_scale ),
+        base_color_offset:          color( base_color_offset ),
+        base_color_desaturation:    base_color_desaturation,
+        tMetallic:                  metalness_image,
+        metallic_channel:           metalness_channel,
+        metallic_factor:            metalness,
+        tCavity:                    cavity_image,
+        cavity_channel:             cavity_channel,
+        specular_weight:            specular_reflection_weight,
+        tRoughness:                 roughness_image,
+        roughness_channel:          roughness_channel,
+        roughness_factor:           roughness_u,
+        roughness_range_position:   roughness_range_position,
+        tNormal:                    normal_image,
+        normal_scale:               normal_scale,
+        normal_flip_green:          normal_flip_green
+    );
+
+    material_layer layer_1 = initialize_material_layer(
+        uv_stream:                  select_uv_stream( streams, uv_set_layer_1 ),
+        tBaseColor:                 layer_1_base_color_image,
+        base_color_tint:            layer_1_diffuse_reflection_color,
+        base_color_scale:           color( layer_1_base_color_scale ),
+        base_color_offset:          color( layer_1_base_color_offset ),
+        base_color_desaturation:    layer_1_base_color_desaturation,
+        tMetallic:                  layer_1_metalness_image,
+        metallic_channel:           layer_1_metalness_channel,
+        metallic_factor:            layer_1_metalness,
+        tCavity:                    layer_1_cavity_image,
+        cavity_channel:             layer_1_cavity_channel,
+        specular_weight:            layer_1_specular_reflection_weight,
+        tRoughness:                 layer_1_roughness_image,
+        roughness_channel:          layer_1_roughness_channel,
+        roughness_factor:           layer_1_roughness_u,
+        roughness_range_position:   layer_1_roughness_range_position,
+        tNormal:                    layer_1_normal_image,
+        normal_scale:               layer_1_normal_scale,
+        normal_flip_green:          layer_1_normal_flip_green
+    );
+
+    material_layer layer_1_composite = blend_material_layer(
+        enable_blend: enable_layer_1,
+        layer_1:      layer_0,
+        layer_2:      layer_1,
+        blend_factor: blend_factor_layer_1
+    );
+
+    material_layer layer_2 = initialize_material_layer(
+        uv_stream:                  select_uv_stream( streams, uv_set_layer_2 ),
+        tBaseColor:                 layer_2_base_color_image,
+        base_color_tint:            layer_2_diffuse_reflection_color,
+        base_color_scale:           color( layer_2_base_color_scale ),
+        base_color_offset:          color( layer_2_base_color_offset ),
+        base_color_desaturation:    layer_2_base_color_desaturation,
+        tMetallic:                  layer_2_metalness_image,
+        metallic_channel:           layer_2_metalness_channel,
+        metallic_factor:            layer_2_metalness,
+        tCavity:                    layer_2_cavity_image,
+        cavity_channel:             layer_2_cavity_channel,
+        specular_weight:            layer_2_specular_reflection_weight,
+        tRoughness:                 layer_2_roughness_image,
+        roughness_channel:          layer_2_roughness_channel,
+        roughness_factor:           layer_2_roughness_u,
+        roughness_range_position:   layer_2_roughness_range_position,
+        tNormal:                    layer_2_normal_image,
+        normal_scale:               layer_2_normal_scale,
+        normal_flip_green:          layer_2_normal_flip_green
+    );
+
+    material_layer layer_2_composite = blend_material_layer(
+        enable_blend: enable_layer_2,
+        layer_1:      layer_1_composite,
+        layer_2:      layer_2,
+        blend_factor: blend_factor_layer_2
+    );
+
+    anisotropy aniso = initialize_anisotropy(
+        uv_stream:              select_uv_stream( streams, uv_set_anisotropy ),
+        enable_anisotropy:      enable_anisotropy,
+        anisotropy_roughness_u: anisotropic_roughness_u,
+        anisotropy_roughness_v: anisotropic_roughness_v,
+        tAnisotropyRotation:    anisotropic_direction_image,
+        anisotropy_channel:     anisotropic_direction_channel,
+        anisotropy_rotation:    anisotropic_direction
+    );
+
+    float accumulated_layer_coat_weight   = accumulate_coat_weight( layer_1_order: layer_1_order,
+                                                                    layer_1_weight: blend_factor_layer_1,
+                                                                    layer_2_order: layer_2_order,
+                                                                    layer_2_weight: blend_factor_layer_2 );
+
+    coat_layer coat = initialize_coat_layer(
+        uv_stream:                  select_uv_stream( streams, uv_set_coat_roughness_normal ),
+        uv_set_weight:              select_uv_stream( streams, uv_set_coat_mask ),
+        enable_coat:                enable_coat,
+        tCoatMask:                  coat_mask_image,
+        tCoatNormal:                coat_normal_image,
+        tCoatRoughness:             coat_roughness_image,
+        coat_weight:                accumulated_layer_coat_weight,
+        coat_weight_channel:        coat_mask_channel,
+        coat_color:                 coat_color,
+        coat_roughness_channel:     coat_roughness_channel,
+        coat_roughness_factor:      coat_roughness,
+        coat_ior:                   coat_ior,
+        coat_anisotropy:            coat_anisotropy,
+        coat_anisotropy_rotation:   coat_anisotropy_rotation,
+        coat_affect_color:          coat_affect_color,
+        coat_affect_roughness:      coat_affect_roughness,
+        coat_flip_green:            coat_normal_flip_green
+    );
+
+    float3 detail_normal = detail_normal_combine(
+        uv_set_normal:          select_uv_stream( streams, uv_set_detail_normal ),
+        uv_set_weight:          select_uv_stream( streams, uv_set_detail_weight ),
+        enable_detail_normal:   enable_detail_normal,
+        base_normal:            layer_2_composite.normal,
+        tDetailNormal:          detail_normal_image,
+        tDetailNormalWeight:    detail_normal_weight_image,
+        detail_normal_channel:  detail_normal_weight_channel,
+        detail_normal_scale:    detail_normal_scale,
+        detail_normal_flip_green: detail_normal_flip_green
+    );
+
+    flake_layer flakes = initialize_flake_layer(
+        enable_flakes:         enable_flakes,
+        flakes_weight:         coat.coat_weight,
+        flakes_size:           flake_size,
+        flakes_density:        flakes_density,
+        flakes_spread:         flakes_spread
+    );
+
+    //Final Material Properties
+    color  final_base_color = math::lerp( layer_2_composite.base_color, flake_color,     flakes.weight > 0.001f ? 1.f : 0.f );
+    float  final_metallic   = math::lerp( layer_2_composite.metallic,   1.f,             flakes.weight > 0.001f ? 1.f : 0.f );
+    float  final_roughness  = math::lerp( layer_2_composite.roughness,  flake_roughness, flakes.weight > 0.001f ? 1.f : 0.f );
+    float3 final_normal = nvidia::core_definitions::blend_normals(
+        base_normal: detail_normal,
+        base_normal_weight: 1.f,
+        detail_normal: flakes.normal,
+        detail_normal_weight: enable_flakes ? coat.coat_weight : 0.f
+    );
+
+    color final_emission_color = emission(
+        uv_stream:              select_uv_stream( streams, uv_set_emission ),
+        uv_stream_mask:         select_uv_stream( streams, uv_set_emission_mask ),
+        enable_emission:        enable_emission,
+        tEmission:              emission_image,
+        tEmissionMask:          emission_mask_image,
+        emission_color:         emission_color
+    );
+
+    float final_opacity = opacity(
+        uv_stream:              select_uv_stream( streams, uv_set_opacity ),
+        enable_opacity:         enable_opacity,
+        tBaseColor:             base_color_image,
+        tOpacity:               opacity_image,
+        opacity_channel:        opacity_channel
+    );
+
+    material base = OmniSurface::OmniSurfaceBase::OmniSurfaceBase(
+        diffuse_reflection_weight: 1.f,
+        diffuse_reflection_color: final_base_color,
+        metalness: final_metallic,
+        specular_reflection_weight: layer_2_composite.specular_weight,
+        specular_reflection_color: specular_reflection_color * math::saturate( layer_2_composite.cavity * 2.f ),
+        specular_reflection_roughness: final_roughness,
+        specular_reflection_anisotropy: enable_anisotropy ? 1.f : 0.0f,
+        specular_reflection_anisotropy_rotation: enable_anisotropy ? aniso.anisotropy_rotation : 0.f,
+        coat_weight: coat.coat_weight,
+        coat_color: coat.coat_color,
+        coat_roughness: coat.coat_roughness,
+        coat_ior: coat.coat_ior,
+        coat_anisotropy: coat.coat_anisotropy,
+        coat_anisotropy_rotation: coat.coat_anisotropy_rotation,
+        coat_affect_color: coat.coat_affect_color,
+        coat_affect_roughness: coat.coat_affect_roughness,
+        coat_normal: coat.coat_normal,
+        emission_weight: 1.0,
+        emission_mode: emission_mode,
+        emission_intensity: enable_emission ? emission_intensity : 0.f,
+        emission_color: final_emission_color,
+        emission_use_temperature: emission_use_temperature,
+        emission_temperature: emission_temperature,
+        enable_opacity: enable_opacity,
+        geometry_opacity: final_opacity,
+        geometry_opacity_threshold: geometry_opacity_threshold,
+        geometry_normal_roughness: enable_anisotropy ?
+                                        float2( aniso.anisotropy_roughness_u,
+                                                aniso.anisotropy_roughness_v ) :
+                                        float2(0.f, 0.f),
+        geometry_normal: final_normal
+    );
+
+} in material(
+    surface: base.surface,
+    ior: base.ior,
+    thin_walled: base.thin_walled,
+    volume: base.volume,
+    geometry: base.geometry
+);

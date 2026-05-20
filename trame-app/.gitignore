@@ -1,0 +1,6 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# kit-streamer.iife.js is intentionally committed; rebuild via kit-streamer/ at repo root

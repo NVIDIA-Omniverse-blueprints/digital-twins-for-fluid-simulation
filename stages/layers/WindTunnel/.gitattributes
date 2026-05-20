@@ -1,0 +1,7 @@
+# 1. Catch-all: Match everything in this directory and subdirectories
+* filter=lfs diff=lfs merge=lfs -text
+
+# 2. Exceptions: Tell Git NOT to use LFS for these specific files
+.gitattributes !filter !diff !merge text
+.gitignore     !filter !diff !merge text
+*.md           !filter !diff !merge text
