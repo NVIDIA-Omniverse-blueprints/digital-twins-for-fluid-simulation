@@ -1,0 +1,37 @@
+# A deliberately NON-AERO workflow manifest that proves the use-case-agnostic core can drive a
+# workflow whose controls/bindings/outputs reference nothing automotive or aerodynamic. If the
+# core can run this, it carries no specialization vocabulary.
+
+[workflow]
+id             = "fake_test"
+label          = "Fake Test Workflow"
+app_state_prim = "/World/AppState"
+
+# A stateful control with a custom widget and a plain Attribute binding.  Even custom UI controls
+# map to a typed app-state attribute; readouts/views are the manifest surfaces for non-state UI.
+[controls.color]
+schema_attr = "test:app_state:color"
+role        = "visualization"
+widget      = "custom:my.module:ColorWidget"
+bindings = [
+  { kind = "Attribute", knobs = ["color"], targets = ["/World/Widget"], attribute = "color" },
+]
+
+# An inference-role control with a Variant binding and a cache grid.
+[controls.shape]
+schema_attr  = "test:app_state:shape"
+role         = "inference"
+widget       = "select"
+values       = ["Box", "Sphere"]
+cache_values = ["Box", "Sphere"]
+bindings = [
+  { kind = "Variant", knobs = ["shape"], targets = ["/World/Widget"], variant_set = "Shape" },
+]
+
+# A non-voxel output (mesh-native field) — proves core does not assume dense-grid analyses.
+[outputs.stress]
+model_output = "stress"
+target       = "/World/Result"
+field_name   = "Stress"
+role         = "scalar"
+data_format  = "vertex_array"

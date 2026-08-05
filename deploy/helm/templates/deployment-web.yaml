@@ -51,6 +51,10 @@ spec:
             - name: http
               containerPort: 5173
               protocol: TCP
+          env:
+            # Which panels the UI shows: both (default) | explore | compare.
+            - name: RTWT_UI_PANELS
+              value: {{ .Values.web.env.uiPanels | quote }}
           # tcpSocket probes on 5173. Trame binds the port early but does not
           # guarantee a meaningful HTTP response until the WebRTC stream links
           # up. The honest signal here is "is the socket accepting?"

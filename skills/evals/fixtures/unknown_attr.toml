@@ -1,0 +1,14 @@
+# Eval fixture: a control whose schema_attr does not exist on the AppState schema.
+# Validation must reject it with a "schema_attr ... not found" error.
+
+[workflow]
+id = "eval-unknown-attr"
+
+[controls.bad]
+schema_attr = "omni:rtwt:app_state:does_not_exist"
+role        = "visualization"
+widget      = "toggle"
+values      = ["On", "Off"]
+bindings = [
+  { kind = "Variant", knobs = ["bad"], targets = ["/World/Nope"], variant_set = "Nope" },
+]

@@ -1,0 +1,26 @@
+# Bring-your-own-geometry: static declarative backend/validator fixture.
+#
+# A single control, "shape", swaps the Cube prim's Shape variant set between two geometries — the
+# same variant + binding mechanism the auto-aero car uses for its spoiler/rims/mirrors. This
+# fixture has no frontend or runnable application. Validate it with:
+#   tools/validate/rtdt-validate.sh \
+#     --manifest source/specializations/auto-aero/examples/byo-geometry-cube/workflow.toml \
+#     --schemas RtwtCubeAppStateAPI \
+#     --schema-plugins source/specializations/auto-aero/examples/byo-geometry-cube/schema \
+#     --stage source/specializations/auto-aero/examples/byo-geometry-cube/stage.usda
+
+[workflow]
+id = "byo-geometry-cube"
+label = "Bring-Your-Own Geometry (Cube)"
+app_state_prim = "/World/AppState"
+
+[controls.shape]
+schema_attr = "omni:rtwt:app_state:shape"
+role        = "visualization"
+widget      = "toggle"
+group       = "Geometry"
+label       = "Shape"
+values      = ["UnitCube", "TallCube"]
+bindings = [
+  { kind = "Variant", knobs = ["shape"], targets = ["/World/Cube"], variant_set = "Shape" },
+]

@@ -4,6 +4,7 @@
 .env
 web-app/app
 logs/
+.vscode/
 
 # Python
 __pycache__/

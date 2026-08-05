@@ -1,0 +1,22 @@
+#usda 1.0
+(
+    "Applied AppState schema for the bring-your-own-geometry-cube example. In a real workflow this"
+    "file is produced by usdGenSchema from a schema.usda source; it is hand-written here to keep the"
+    "example self-contained and free of a build step."
+)
+
+class "RtwtCubeAppStateAPI" (
+    customData = {
+        string userDocBrief = "App-state knobs for the cube example."
+    }
+)
+{
+    uniform token omni:rtwt:app_state:shape = "UnitCube" (
+        allowedTokens = ["UnitCube", "TallCube"]
+        customData = {
+            string userDocBrief = "Which cube geometry to show."
+        }
+        displayGroup = "RTWT Cube App State"
+        displayName = "Shape"
+    )
+}

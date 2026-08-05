@@ -9,12 +9,14 @@
 # Make sure shell scripts have LF line endings, even when checked out on a Windows client with autocrlf=true
 *.sh text eol=lf
 
-# All files under data go into Git LFS
-data/** filter=lfs diff=lfs merge=lfs -text
+# All files under the auto-aero data dir go into Git LFS
+# (relocated from data/ to the specialization subtree; the patterns are root-anchored
+# so they must name the new path explicitly).
+source/specializations/auto-aero/data/** filter=lfs diff=lfs merge=lfs -text
 
 # ...except the small JSON sidecars alongside the .npz cache entries,
 # which stay in regular git so they are diffable.
-data/cache/*.json !filter !diff !merge text
+source/specializations/auto-aero/data/cache/*.json !filter !diff !merge text
 
 # explicitly list extensions to add to LFS
 *.png filter=lfs diff=lfs merge=lfs -text

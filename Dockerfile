@@ -16,10 +16,12 @@
 # -----------------------------------------------------------------------------
 FROM nvcr.io/nvidia/omniverse/ov-base-ubuntu-22:2025.2.0 AS base
 USER root
-RUN echo "deb https://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" >> /etc/apt/sources.list && \
-    echo "deb https://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
-    echo "deb https://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
-    echo "deb https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+RUN printf '%s\n' \
+        "deb https://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" \
+        "deb https://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" \
+        "deb https://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse" \
+        "deb https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse" \
+        > /etc/apt/sources.list && \
     apt-get update && \
     apt-get install -y git git-lfs build-essential libunwind8 && \
     rm -rf /var/lib/apt/lists/* && \

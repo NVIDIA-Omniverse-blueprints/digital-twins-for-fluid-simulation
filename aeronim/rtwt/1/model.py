@@ -12,14 +12,19 @@ state (mesh selection, domain extents, stream velocity).  This model:
 """
 
 import os
+import sys
 import traceback
 from pathlib import Path
 
-import dav
+_RTWT_PYTHON_PATH = os.environ.get("RTWT_PYTHON_PATH")
+if _RTWT_PYTHON_PATH:
+    sys.path.insert(0, _RTWT_PYTHON_PATH)
+
 import numpy as np
 import trimesh
 import triton_python_backend_utils as pb_utils
 import warp as wp
+import warp_simdata as simdata
 from pxr import Gf, Sdf, Usd
 
 from .logging import get_logger, setup_logger
@@ -27,6 +32,11 @@ from .logging import get_logger, setup_logger
 logger = get_logger()
 
 _UPSTREAM_OUTPUTS = ["velocity", "pressure", "ERROR_MESSAGE"]
+# Producer side of the inference wire: maps each upstream model output to the NanoVDB
+# tensor name returned to Kit. These names MUST agree with the consumer side in the Kit repo — the
+# manifest [outputs] ids and the stage's RtwtResultFieldSelectionAPI instances (which the
+# controller's workflow validator cross-checks). aeronim runs in its own container across the wire,
+# so the agreement is a documented contract, not a shared import.
 _NANOVDB_OUTPUTS = {
     "velocity": "nvdb_velocity",
     "velocity_magnitude": "nvdb_velocity_magnitude",
@@ -46,7 +56,10 @@ def _extract_str(request, name: str) -> str:
     return tensor.as_numpy().ravel()[0].decode("utf-8")
 
 
-_SUBLAYER_PATH = "/opt/stages/BaseCAEVariants.usda"
+# The mounted BaseCAEVariants.usda used to resolve variant-set composition (see
+# _load_stage_from_string). Overridable via RTWT_SUBLAYER_PATH so the stage mount can move without
+# editing code; the default matches the compose mount of auto-aero/stages -> /opt/stages.
+_SUBLAYER_PATH = os.environ.get("RTWT_SUBLAYER_PATH", "/opt/stages/BaseCAEVariants.usda")
 
 
 def _load_stage_from_string(usd_string: str) -> Usd.Stage:
@@ -64,7 +77,7 @@ def _load_stage_from_string(usd_string: str) -> Usd.Stage:
 
 
 def _to_nanovdb_buffer(data: np.ndarray, dims: wp.vec3i, origin: wp.vec3i, voxel_size: wp.vec3f, bg_value) -> np.ndarray:
-    """Convert a NumPy array to a serialised NanoVDB buffer via Warp + DAV.
+    """Convert a NumPy array to a serialised NanoVDB buffer via Warp SimData.
 
     Scalar fields (shape ``(N,)`` or ``(N, 1)``) are stored as ``float32``
     grids; vector fields (shape ``(N, 3)``) are stored as ``vec3f`` grids.
@@ -76,7 +89,7 @@ def _to_nanovdb_buffer(data: np.ndarray, dims: wp.vec3i, origin: wp.vec3i, voxel
     else:
         wp_array = wp.array(data.reshape(-1), dtype=wp.float32, device="cuda", copy=False)
 
-    field = dav.Field.from_array(wp_array, dav.AssociationType.VERTEX)
+    field = simdata.Field.from_array(wp_array, simdata.AssociationType.NODE)
     nvdb_field = field.to_nanovdb(dims=dims, origin=origin, voxel_size=voxel_size, bg_value=bg_value, device="cuda")
     return nvdb_field.get_data().array().numpy()
 
@@ -272,10 +285,10 @@ class TritonPythonModel:
 
         domain_rel = prim.GetRelationship("cae:viz:dataset_selection:domain:target")
         domain_prim = stage.GetPrimAtPath(domain_rel.GetForwardedTargets()[0])
-        origin = np.array(domain_prim.GetAttribute("cae:vtk:origin").Get(), dtype=np.float32)
-        spacing = np.array(domain_prim.GetAttribute("cae:vtk:spacing").Get(), dtype=np.float32)
-        extent_min = np.array(domain_prim.GetAttribute("cae:vtk:minExtent").Get(), dtype=np.int32)
-        extent_max = np.array(domain_prim.GetAttribute("cae:vtk:maxExtent").Get(), dtype=np.int32)
+        origin = np.array(domain_prim.GetAttribute("omni:vtk:origin").Get(), dtype=np.float32)
+        spacing = np.array(domain_prim.GetAttribute("omni:vtk:spacing").Get(), dtype=np.float32)
+        extent_min = np.array(domain_prim.GetAttribute("omni:vtk:minExtent").Get(), dtype=np.int32)
+        extent_max = np.array(domain_prim.GetAttribute("omni:vtk:maxExtent").Get(), dtype=np.int32)
 
         logger.info(f"Extracted from USD: model_tag={model_tag}, stream_velocity={stream_velocity}")
         return stream_velocity, model_tag, origin, spacing, extent_min, extent_max

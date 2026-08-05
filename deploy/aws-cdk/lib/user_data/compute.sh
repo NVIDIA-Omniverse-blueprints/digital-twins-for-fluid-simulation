@@ -156,13 +156,13 @@ NIM_TRITON_HTTP_PORT=${NIM_TRITON_HTTP_PORT}
 
 # Application Configuration
 COMPOSE_PROFILES=standard
-USD_URL=/home/ubuntu/usd/world_rtwt_minimal.usda
-STL_PATH_FORMAT=/data/low_res/detailed_car_{}/aero_suv_low.stl
+USD_URL=${USD_URL}
+STL_PATH_FORMAT=${STL_PATH_FORMAT}
 WEB_HOST_PORT=80
 CUDA_DEVICE_KIT=0
 ${CUDA_DEVICE_AERONIM_ENV}
 # STREAMSDK_SENDER_TIMEOUT=100000
-KIT_APP=omni.rtwt.webrtc.kit
+KIT_APP=${KIT_APP}
 
 # Omniverse credentials (optional)
 OMNI_USER=

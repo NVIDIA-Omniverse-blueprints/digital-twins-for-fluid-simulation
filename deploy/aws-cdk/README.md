@@ -24,13 +24,13 @@ g5.4xlarge and skips the NIM stack.
 
 **Tools**
 - AWS CLI v2 with credentials configured (`AWS_ACCOUNT_ID`, `AWS_REGION` exported)
-- Node.js ≥ 18 and `npm`
+- Node.js ≥ 20, `npm`, and `jq`
 - Python 3.10+
 
-**CDK CLI** — must be v2.1120.0 or newer (schema v53):
+**CDK CLI** — must be v2.1134.0 or newer (schema v54):
 ```bash
 npm install -g aws-cdk   # or: npm install aws-cdk --prefix ~/.local
-cdk --version            # must print 2.1120.0 or higher
+cdk --version            # must print 2.1134.0 or higher
 ```
 
 **Python virtual environment** (run once from the `deploy/aws-cdk/` directory):
@@ -58,10 +58,12 @@ present locally before you run `cdk deploy`**.
 # 1. Pull all Git LFS binary files (data/, stages/, images/, etc.)
 git lfs pull
 
-# 2. Initialize the kit-cae submodule and pull its LFS files
+# 2. Initialize the pinned Kit-CAE 3.0 submodule and pull its LFS files
 git submodule update --init --recursive
 git submodule foreach --recursive 'git lfs pull'
 ```
+
+The submodule gitlink is the tested Kit-CAE 3.0 revision; its configured update branch is `main`.
 
 If either step is skipped, the corresponding files will be LFS pointer stubs on
 S3 and the containers will fail to find the data they need at runtime.
@@ -86,12 +88,12 @@ export AWS_REGION=us-east-1
 ```bash
 cdk deploy --all \
   --parameters OmniverseCAEConfigStack:NGCApiKey=nvapi-<your-key> \
-  -c allowedIpRanges="<your-public-ip>/32" \
-  [--profile <aws-profile>]
+  -c allowedIpRanges="<your-public-ip>/32"
 ```
 
 The NGC API key is passed as a CloudFormation `NoEcho` parameter and stored in
-Secrets Manager.
+Secrets Manager. Append `--profile <aws-profile>` when not using the default AWS
+profile.
 
 Optional parameters:
 | Flag | Default | Effect |
@@ -117,8 +119,10 @@ launch (adds ~10 minutes on top of boot).
 ## Check Status
 
 ```bash
-./check-app-status.sh -r $AWS_REGION [--profile <aws-profile>]
+./check-app-status.sh -r "$AWS_REGION"
 ```
+
+Append `--profile <aws-profile>` when not using the default AWS profile.
 
 When all containers are up, this prints the application URL. The URL is also
 visible in CloudFormation outputs:
@@ -133,8 +137,10 @@ Open in **Chrome** for best WebRTC compatibility.
 ## Delete (avoid ongoing cost)
 
 ```bash
-cdk destroy --all [--profile <aws-profile>]
+cdk destroy --all
 ```
+
+Append `--profile <aws-profile>` when not using the default AWS profile.
 
 The S3 artifact bucket is automatically deleted with its contents. The NGC API
 key secret in Secrets Manager is also removed.
@@ -161,8 +167,10 @@ CDK outputs the connection commands directly:
 - **OV instance**: `OmniverseCAEComputeStack.SSMConnectCommand`
 
 ```bash
-aws ssm start-session --target i-xxxxxxxxxxxxxxxxx [--profile <aws-profile>] [--region $AWS_REGION]
+aws ssm start-session --target i-xxxxxxxxxxxxxxxxx
 ```
+
+Append `--profile <aws-profile>` and/or `--region "$AWS_REGION"` when needed.
 
 Once connected, switch to the ubuntu user and check the boot log:
 ```bash

@@ -1,0 +1,12 @@
+# Eval fixture: cache_values on a visualization-role control (only inference controls may set them).
+# Validation must reject it with a "cache_values requires role='inference'" error. The schema_attr
+# is a real viz attribute, so the role error is the one under test.
+
+[workflow]
+id = "eval-cache-on-viz"
+
+[controls.viz]
+schema_attr  = "omni:rtwt:app_state:vizMode"
+role         = "visualization"
+widget       = "toggle"
+cache_values = ["Volume"]

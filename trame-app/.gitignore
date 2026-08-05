@@ -3,4 +3,5 @@
 __pycache__/
 *.pyc
 
-# kit-streamer.iife.js is intentionally committed; rebuild via kit-streamer/ at repo root
+# kit-streamer.iife.js is built in Docker (the kit-streamer/ vite stage) and gitignored at the
+# repo root — not committed. For host dev, build it once via kit-streamer/ before running app.py.

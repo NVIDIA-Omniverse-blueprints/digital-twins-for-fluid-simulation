@@ -1,0 +1,13 @@
+name = "baseline_valid"
+description = "Validator smoke: the shipped auto-aero manifest passes schema-level checks."
+prompt = """
+Validate the auto-aero workflow manifest against its AppState schemas. This schema-level smoke
+should report no errors. Use tools/validate/rtdt-validate.sh.
+"""
+
+[validate]
+manifest = "source/specializations/auto-aero/workflow/workflow.toml"
+schemas = ["RtwtInferenceAppStateAPI", "RtwtVizAppStateAPI"]
+
+[expect]
+ok = true

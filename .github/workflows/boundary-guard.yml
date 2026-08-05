@@ -1,0 +1,19 @@
+name: Core/Specialization Boundary Guard
+
+# Enforces that the use-case-agnostic core (source/core/**) must not take on a
+# dependency on the automotive-aero specialization (source/specializations/auto-aero/**).
+# Pure-Python static check -- no build environment required.
+# See tools/ci/check_core_boundary.py.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  boundary-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check core -> specialization boundary
+        run: python3 tools/ci/check_core_boundary.py

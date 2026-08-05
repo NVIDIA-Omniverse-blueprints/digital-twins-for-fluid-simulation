@@ -1,0 +1,14 @@
+name = "unknown_attr"
+description = "Validator smoke: an unknown AppState schema attribute is rejected."
+prompt = """
+Validate skills/evals/fixtures/unknown_attr.toml against the auto-aero AppState schemas. It declares
+a control whose schema_attr does not exist; validation must fail and say which attribute is missing.
+"""
+
+[validate]
+manifest = "skills/evals/fixtures/unknown_attr.toml"
+schemas = ["RtwtInferenceAppStateAPI", "RtwtVizAppStateAPI"]
+
+[expect]
+ok = false
+error_contains = "not found on the applied AppState schema"

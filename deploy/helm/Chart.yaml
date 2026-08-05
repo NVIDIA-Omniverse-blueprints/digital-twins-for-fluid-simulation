@@ -4,5 +4,5 @@ apiVersion: v2
 name: rtdt-fluid-sim
 description: NVIDIA Digital Twins for Fluid Simulation Blueprint
 type: application
-version: 0.1.0
-appVersion: "2026.05"
+version: 0.2.0
+appVersion: "2026.07"

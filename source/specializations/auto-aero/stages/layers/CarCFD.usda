@@ -1,0 +1,212 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def OmniSciDataset "CarCFD" (
+        prepend apiSchemas = ["OmniSciFileFormatArgsPythonAPI", "RtwtModelAPI"]
+        variants = {
+            string Rims = "Standard"
+        }
+        prepend variantSets = "Rims"
+
+        """
+        Plugin-backed PLY surface used by inference and CAE visualization.
+
+        Encoding: variant_number = 500 + mirror + 2*spoiler + 4*rim + 8*ride_height
+           Mirrors:    On=0,       Off=1
+           Spoiler:    Off=0,      On=1
+           Rims:       Standard=0, Aero=1
+           Ride_Height: Standard=0, High=1
+        """
+    )
+    {
+        variantSet "Rims" = {
+            "Standard" (
+                variants = { string Mirrors = "On" }
+                prepend variantSets = "Mirrors"
+            ) {
+                variantSet "Mirrors" = {
+                    "On" (
+                        variants = { string Spoiler = "Off" }
+                        prepend variantSets = "Spoiler"
+                    ) {
+                        variantSet "Spoiler" = {
+                            "Off" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_500/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_500/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_508/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_508/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                            "On" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_502/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_502/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_510/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_510/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "Off" (
+                        variants = { string Spoiler = "Off" }
+                        prepend variantSets = "Spoiler"
+                    ) {
+                        variantSet "Spoiler" = {
+                            "Off" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_501/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_501/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_509/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_509/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                            "On" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_503/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_503/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_511/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_511/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            "Aero" (
+                variants = { string Mirrors = "On" }
+                prepend variantSets = "Mirrors"
+            ) {
+                variantSet "Mirrors" = {
+                    "On" (
+                        variants = { string Spoiler = "Off" }
+                        prepend variantSets = "Spoiler"
+                    ) {
+                        variantSet "Spoiler" = {
+                            "Off" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_504/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_504/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_512/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_512/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                            "On" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_506/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_506/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_514/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_514/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "Off" (
+                        variants = { string Spoiler = "Off" }
+                        prepend variantSets = "Spoiler"
+                    ) {
+                        variantSet "Spoiler" = {
+                            "Off" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_505/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_505/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_513/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_513/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                            "On" (
+                                variants = { string Ride_Height = "Standard" }
+                                prepend variantSets = "Ride_Height"
+                            ) {
+                                variantSet "Ride_Height" = {
+                                    "Standard" (
+                                        prepend payload = @../../data/low_res/detailed_car_507/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_507/aero_suv_low.ply"
+                                    }
+                                    "High" (
+                                        prepend payload = @../../data/low_res/detailed_car_515/aero_suv_low.ply@
+                                    ) {
+                                        string omni:rtwt:model:tag = "low_res/detailed_car_515/aero_suv_low.ply"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

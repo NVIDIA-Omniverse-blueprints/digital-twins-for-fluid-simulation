@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[core]
+reloadable = false
+order = -100  # Load schemas early, alongside the core omni.rtwt.schema.
+
+[package]
+title = "RTWT Auto-Aero USD Schema"
+version = "1.0.0"  # Semantic Versioning is used: https://semver.org/
+description = "Automotive-aero specialization AppState knob schemas (spoiler/rims/mirrors/velocity, viz modes) for the virtual wind tunnel."
+category = "internal"  # specialization schema (see source/specializations/auto-aero)
+changelog = "docs/CHANGELOG.md"
+icon = "data/icon.png"
+keywords = ["kit", "rtwt", "auto_aero", "schema", "specialization"]
+readme = "docs/README.md"
+
+[dependencies]
+"omni.usd.libs" = {}
+
+[[python.module]]  # Publicly available as "import omni.rtwt.auto_aero.schema"
+name = "omni.rtwt.auto_aero.schema"

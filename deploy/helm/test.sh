@@ -194,9 +194,17 @@ run_render_checks() {
   assert_contains "${standard_manifest}" "image: \"rtdt-aeronim:latest\"" "custom AeroNIM image"
   assert_contains "${standard_manifest}" "mountPath: /opt/data" "AeroNIM data mount"
   assert_contains "${standard_manifest}" "mountPath: /opt/stages" "AeroNIM stages mount"
+  assert_contains "${standard_manifest}" "test -f /opt-stages/BaseCAEVariants.usda" "AeroNIM stage-file assertion (default aero stage)"
   assert_contains "${standard_manifest}" "name: NGC_API_KEY" "NGC_API_KEY env var"
   assert_contains "${standard_manifest}" "type: kubernetes.io/dockerconfigjson" "NGC image pull secret"
   assert_not_contains "${standard_manifest}" "name: RTWT_OFFLINE_MODE" "lite offline mode env var in standard mode"
+
+  echo "==> helm template (standard, aeronim.requiredStageFile cleared -> no stage assertion)"
+  "${HELM_BIN}" template "${RELEASE_NAME}" "${SCRIPT_DIR}" \
+    --set mode=standard \
+    --set-string "ngcSecret.apiKey=${DUMMY_NGC_API_KEY}" \
+    --set-string "aeronim.requiredStageFile=" > "${standard_manifest}"
+  assert_not_contains "${standard_manifest}" "test -f /opt-stages/" "stage-file assertion absent when requiredStageFile is empty"
 
   echo "==> helm template (standard, pre-created secrets)"
   "${HELM_BIN}" template "${RELEASE_NAME}" "${SCRIPT_DIR}" \

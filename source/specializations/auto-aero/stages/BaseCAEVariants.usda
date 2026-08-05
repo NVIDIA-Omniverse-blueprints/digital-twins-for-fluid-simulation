@@ -1,0 +1,492 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 100
+    metersPerUnit = 0.01
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+    subLayers = [
+        @./BaseCAE.usda@
+    ]
+)
+
+over "World"
+{
+    over "CAE" (
+        variants = {
+            string Mode = "Empty"
+            string SliceDirection = "X"
+        }
+        prepend variantSets = ["Mode", "SliceDirection"]
+    )
+    {
+        variantSet "Mode" = {
+            "Empty" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Flow" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 1
+                        bool forceClear = 0
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "inherited"
+                }
+            }
+            "Streamlines" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "inherited"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "inherited"
+                }
+            }
+            "Volume_VelocityMagnitude" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "inherited"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Volume_Pressure" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "inherited"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                 over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_VelocityMagnitude" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "inherited"
+                    uniform token[] cae:viz:field_selection:colors:fieldNames = ["VelocityMagnitude"]
+                    over "Materials"
+                    {
+                        over "UnlitScalarColor"
+                        {
+                            over "Shader"
+                            {
+                                asset inputs:lut = @dynamic://cae_colormap_velocity_colormap@
+                            }
+                        }
+                    }
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_Pressure" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "inherited"
+                    uniform token[] cae:viz:field_selection:colors:fieldNames = ["Pressure"]
+                    over "Materials"
+                    {
+                        over "UnlitScalarColor"
+                        {
+                            over "Shader"
+                            {
+                                asset inputs:lut = @dynamic://cae_colormap_pressure_colormap@
+                            }
+                        }
+                    }
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            # Comparison-view diff modes. Each shows one default-invisible *Delta prim and hides every
+            #    main prim. Selected when the comparisonResultSet control is "diff": the binding engine
+            #    composes the Mode variant name as {vizMode}_{vizField}Delta. Volume and Slice only, no
+            #    Flow/Streamlines.
+            "Volume_VelocityMagnitudeDelta" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_VelocityMagnitudeDelta"
+                {
+                    token visibility = "inherited"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Volume_PressureDelta" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_PressureDelta"
+                {
+                    token visibility = "inherited"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_VelocityMagnitudeDelta" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                # Diff re-uses the LIVE velocity-magnitude slice prim, re-coloured here (delta field +
+                # diverging colormap) so switching to Diff re-textures a drawn prim -> forces a present,
+                # exactly like Solver<->Surrogate and a slider move. No separate delta slice prim => no
+                # render cold-start. The +/- scale (inputs:domain) is set by auto_aero.dynamic_pressure.
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "inherited"
+                    uniform token[] cae:viz:field_selection:colors:fieldNames = ["VelocityMagnitudeDelta"]
+                    over "Materials"
+                    {
+                        over "UnlitScalarColor"
+                        {
+                            over "Shader"
+                            {
+                                asset inputs:lut = @dynamic://cae_colormap_velocity_magnitude_delta_colormap@
+                            }
+                        }
+                    }
+                }
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+            "Slice_PressureDelta" {
+                over "Volume_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                over "Volume_Pressure"
+                {
+                    token visibility = "invisible"
+                }
+                over "PlanarSlice_VelocityMagnitude"
+                {
+                    token visibility = "invisible"
+                }
+                # Diff re-uses the LIVE pressure slice prim, re-coloured here (delta field + diverging
+                # colormap). See Slice_VelocityMagnitudeDelta for the rationale (re-texture a drawn prim ->
+                # present; no separate prim => no cold-start; +/- scale via auto_aero.dynamic_pressure).
+                over "PlanarSlice_Pressure"
+                {
+                    token visibility = "inherited"
+                    uniform token[] cae:viz:field_selection:colors:fieldNames = ["PressureDelta"]
+                    over "Materials"
+                    {
+                        over "UnlitScalarColor"
+                        {
+                            over "Shader"
+                            {
+                                asset inputs:lut = @dynamic://cae_colormap_pressure_delta_colormap@
+                            }
+                        }
+                    }
+                }
+                over "Streamlines"
+                {
+                    token visibility = "invisible"
+                }
+                over "FlowSimulation_L0"
+                {
+                    over "flowSimulate"
+                    {
+                        bool forceSimulate = 0
+                        bool forceClear = 1
+                    }
+                }
+                over "Probes"
+                {
+                    token visibility = "invisible"
+                }
+            }
+        }
+
+        variantSet "SliceDirection" = {
+            # X and Y are swapped since CAE prim is rotated.
+            "Y" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "x"
+                }
+            }
+            "X" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "y"
+                }
+            }
+            "Z" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "z"
+                }
+            }
+            "XYZ" {
+                over "PlanarSlice_Prototype"
+                {
+                    uniform token cae:viz:planarSlice:mode = "xyz"
+                }
+            }
+        }
+    }
+}

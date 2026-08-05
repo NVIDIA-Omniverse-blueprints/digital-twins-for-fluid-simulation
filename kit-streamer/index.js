@@ -198,7 +198,10 @@ function send(eventType, payload = {}) {
 
 /** @param {object} msg - Raw message from onCustomEvent. */
 function _onResponse(msg) {
-    const id = msg?.payload?.id;
+    // Kit 110's messaging envelope carries the correlation id at the top level
+    // (msg.id); older builds nested it under payload.id. Accept both — `??` (not
+    // `||`) so that id 0, the very first request, is preserved.
+    const id = msg?.id ?? msg?.payload?.id;
     const resolver = _pending.get(id);
     if (resolver) {
         _pending.delete(id);

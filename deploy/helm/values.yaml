@@ -158,6 +158,12 @@ web:
 
   replicaCount: 1
 
+  # Env vars consumed by the trame app. Mirror compose.yml's web service so the
+  # two deployment paths stay aligned.
+  env:
+    # Which panels the UI shows: both (default) | explore | compare.
+    uiPanels: "both"
+
   service:
     # NodePort for local / dev, LoadBalancer for cloud, ClusterIP if fronted
     # by an ingress controller.
@@ -189,6 +195,11 @@ tests:
 # Rendered only when mode=standard.
 # =============================================================================
 aeronim:
+  # Stage file the inference backend asserts is present at init time (empty string
+  # disables the assertion). Defaults to the automotive-aero scene; a non-aero backend
+  # can override or clear it so the inference tier is not bound to the aero stage.
+  requiredStageFile: "BaseCAEVariants.usda"
+
   image:
     # Built from aeronim/Dockerfile.aeronim. This image extends the upstream
     # DoMINO Automotive Aero NIM and overlays the app-specific `rtwt` Triton

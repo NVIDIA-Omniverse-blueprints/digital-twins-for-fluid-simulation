@@ -10,8 +10,8 @@
 #   launch-proxy — Reverse proxy for launchable/cloud HTTPS entrypoints
 #
 # Profiles (selected via COMPOSE_PROFILES in .env, or `--profile` on the CLI):
-#   standard — kit + aeronim + web. Needs 2 GPUs and an NGC API key.
-#   lite     — kit-lite + web. Single GPU, offline, reads pre-baked cache.
+#   standard — kit + aeronim + web + proxy. Needs 2 x 40 GB GPUs or 1 x >80 GB GPU and an NGC API key.
+#   lite     — kit-lite + web + proxy. Single GPU, offline, reads pre-baked cache.
 #
 # Configuration lives in .env (see .env_template for the full list).
 #
@@ -22,7 +22,7 @@
 #
 # Common commands:
 #   docker compose --profile lite up --build   # build + run offline stack
-#   docker compose --profile standard up       # run full stack (requires 2 GPUs)
+#   docker compose --profile standard up       # run full stack (see .env_template for GPU options)
 #   docker compose down -v                     # stop and wipe ov-cache volumes
 # =============================================================================
 
@@ -46,7 +46,8 @@ services:
         required: false     # aeronim absent in lite profile
     privileged: true         # required for NVIDIA driver access + WebRTC perf
     # WebRTC streaming ports — must match the ranges expected by the Omniverse
-    # Streaming SDK. 1024/udp is signalling; the higher ranges are media.
+    # Streaming SDK. TCP 49100 carries signaling; UDP 1024 and the higher
+    # TCP/UDP ranges carry media and transport traffic.
     ports:
      - "1024:1024/udp"
      - "49100:49100/tcp"
@@ -56,8 +57,6 @@ services:
      - "49000-49007:49000-49007/udp"
     profiles: ["standard"]
     environment: &kit-base-env
-      # GPU used for rendering (see .env_template for multi-GPU setups).
-      CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_KIT:-0}"
       # Optional Nucleus/Omniverse credentials — only needed if the scene
       # references omniverse:// URLs. Safe to leave unset for local stages.
       OMNI_USER: "$OMNI_USER"
@@ -78,7 +77,10 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["0"]
+              # This is a host GPU index. The selected device is exposed as
+              # CUDA ordinal 0 inside the container, so do not mirror this
+              # value into CUDA_VISIBLE_DEVICES.
+              device_ids: ["${CUDA_DEVICE_KIT:-0}"]
               capabilities: [gpu]
     volumes: &kit-base-volumes
       # Named volumes persist Omniverse caches across `compose up` invocations
@@ -87,16 +89,19 @@ services:
       - "ov-local-share:/home/ubuntu/.local/share/ov/"
 
       # USD stages and sample data (including pre-baked inference cache).
-      - ./stages:/app/rtwt/stages:ro
-      - ./data:/app/rtwt/data:ro
+      - ./source/specializations/auto-aero/stages:/app/rtwt/stages:ro
+      - ./source/specializations/auto-aero/data:/app/rtwt/data:ro
+      # Declarative workflow manifest.
+      - ./source/specializations/auto-aero/workflow:/app/rtwt/workflow:ro
 
       # Live-edit mounts: Python extensions load from the host tree, so edits
       # on disk are picked up on the next app restart without a rebuild.
       - ./scripts/:/scripts/:ro
-      - ./source/extensions/omni.rtwt.controller/python/:/app/exts/omni.rtwt.controller/omni/rtwt/controller/:ro
-      - ./source/extensions/omni.rtwt.delegate/python/:/app/exts/omni.rtwt.delegate/omni/rtwt/delegate/:ro
-      - ./source/extensions/omni.rtwt.inference/python/:/app/exts/omni.rtwt.inference/omni/rtwt/inference/:ro
-      - ./source/extensions/omni.rtwt.schema/python/:/app/exts/omni.rtwt.schema/omni/rtwt/schema/:ro
+      - ./source/core/extensions/omni.rtwt.controller/python/:/app/exts/omni.rtwt.controller/omni/rtwt/controller/:ro
+      - ./source/core/extensions/omni.rtwt.inference/python/:/app/exts/omni.rtwt.inference/omni/rtwt/inference/:ro
+      - ./source/core/extensions/omni.rtwt.schema/python/:/app/exts/omni.rtwt.schema/omni/rtwt/schema/:ro
+      - ./source/specializations/auto-aero/extensions/omni.rtwt.auto_aero.hooks/python/:/app/exts/omni.rtwt.auto_aero.hooks/omni/rtwt/auto_aero/hooks/:ro
+      - ./source/specializations/auto-aero/extensions/omni.rtwt.auto_aero.schema/python/:/app/exts/omni.rtwt.auto_aero.schema/omni/rtwt/auto_aero/schema/:ro
 
     # Lets code inside the container reach services on the host (e.g. a local
     # Triton running on the developer's laptop) via host.docker.internal.
@@ -144,6 +149,8 @@ services:
       RTWT_FORCE_WSS: "${RTWT_FORCE_WSS:-}"
       RTWT_PUBLIC_IP: "${RTWT_PUBLIC_IP:-}"
       RTWT_DISCOVER_PUBLIC_IP: "${RTWT_DISCOVER_PUBLIC_IP:-1}"
+      # Which panels the UI shows: both (default) | explore | compare.
+      RTWT_UI_PANELS: "${RTWT_UI_PANELS:-both}"
     networks:
       - rtwt
     # `required: false` on both deps — exactly one of the kit services is
@@ -156,15 +163,18 @@ services:
         condition: service_started
         required: false     # absent in standard profile
     volumes:
-      # Live-edit the frontend without rebuilding the image.
+      # Live-edit the frontend without rebuilding the image. Mount app_streamer.js
+      # as a single file (not the whole static/ dir, which would hide the baked
+      # kit-streamer.iife.js bundle).
       - ./trame-app/app.py:/app/app.py:ro
+      - ./trame-app/static/app_streamer.js:/app/static/app_streamer.js:ro
 
   # ---------------------------------------------------------------------------
   # aeronim — Triton Inference Server hosting the AeroNIM CFD model
   #
   # Only runs under the standard profile. The lite profile skips this service
   # and reads pre-baked inference results from data/cache/ instead.
-  # Requires a valid NGC API key to pull the base image.
+  # Requires a valid NGC API key to pull and run the base image.
   # ---------------------------------------------------------------------------
   aeronim:
     profiles: ["standard"]
@@ -177,17 +187,19 @@ services:
       # rendering and inference compete for VRAM if they share a device.
       CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_AERONIM:-1}"
       NGC_API_KEY: "${NGC_API_KEY}"
+      # BaseCAEVariants.usda used for variant-set composition, at the in-container path of the
+      # stages mount below. Override only if you remount the stages directory elsewhere.
+      RTWT_SUBLAYER_PATH: "${RTWT_SUBLAYER_PATH:-/opt/stages/BaseCAEVariants.usda}"
     ipc: host                # shared-memory transport between Triton processes
     ports:
       - "8080:8080"          # Triton HTTP endpoint (matches NIM_TRITON_HTTP_PORT)
     volumes:
       # Same read-only stages/data the kit container sees, at a different path.
-      - ./data:/opt/data:ro
-      - ./stages:/opt/stages:ro
+      - ./source/specializations/auto-aero/data:/opt/data:ro
+      - ./source/specializations/auto-aero/stages:/opt/stages:ro
 
-      # Live-edit mounts for the Triton-side Python backend and shared libs.
+      # Live-edit mount for the Triton-side Python backend.
       - ./aeronim/rtwt:/opt/triton/rtwt:ro
-      - ./kit-cae/source/extensions/omni.cae.dav_libs/dav:/opt/python_packages/dav:ro
     networks:
       - rtwt
 

@@ -1,0 +1,10 @@
+{
+  "comparison_kind": "comparison_ground_truth",
+  "source_surrogate": "9eae54bb9f680734.npz",
+  "requested_outputs": [
+    "nvdb_pressure",
+    "nvdb_velocity",
+    "nvdb_velocity_magnitude"
+  ],
+  "created": "2026-06-20T05:58:27.792215+00:00"
+}

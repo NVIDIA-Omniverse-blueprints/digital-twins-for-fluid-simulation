@@ -1,5 +1,29 @@
 # Changelog
 
+## Version 2026.07
+<!-- Entries below cover landed work; full release notes to follow. -->
+### Added
+* Split the source tree into a use-case-agnostic core (`source/core/`) and an automotive-aero
+  specialization (`source/specializations/auto-aero/`), so a new demo is added without editing core
+* Added a CI boundary guard (`tools/ci/check_core_boundary.py`, run in the build and via GitHub Actions)
+  that fails if core takes on a dependency on the specialization
+* Added a native inference-result bridge that publishes NanoVDB outputs atomically on one
+  `OmniSciDataset` and exposes them to Kit-CAE visualization through Warp SimData
+
+### Changed
+* Relocated `stages/` and `data/` under the auto-aero specialization; runtime paths
+  (`/app/rtwt/{stages,data}`) are unchanged
+* Upgraded the `kit-cae` submodule to the Kit-CAE 3.0 `main` line and aligned the application with
+  Kit SDK/kernel 110.1.3 and `omni.warp.core` 1.13.0
+* Migrated scientific data to Kit-CAE 3's active USD-native stack: CAE OpenUSD file-format plugins
+  author `OmniSciDataset` prims and Warp SimData supplies the accelerated processing path
+* Migrated AeroNIM and the comparison-cache bake tool from the in-repository DAV components to
+  `warp-simdata`
+
+### Removed
+* Removed the RTWT predicted-field Data Delegate and active dependencies on Kit-CAE's legacy
+  `CaeDataSet` / `CaeFieldArray` compatibility path
+
 ## Version 2026.05
 ### Added
 * Adds a lite Docker Compose profile for single-GPU, offline operation using pre-baked inference results

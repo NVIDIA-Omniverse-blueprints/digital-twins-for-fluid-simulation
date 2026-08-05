@@ -3,7 +3,7 @@
 #
 # Extends the NVIDIA Domino Automotive Aero NIM base image with:
 #   - Extra Python dependencies (aeronim/requirements.txt)
-#   - The DAV shared library package from the kit-cae extension tree
+#   - Warp SimData at the version consumed by Kit-CAE 3.0
 #   - The custom `rtwt` Triton model repository used by the Omniverse extension
 #
 # The base image already ships the bundled Triton model repositories
@@ -16,17 +16,23 @@
 FROM nvcr.io/nim/nvidia/domino-automotive-aero:2.1.0-41313772
 USER root
 
-# Install additional Python packages on top of those bundled in the base image.
-# Pinned to pypi.org to avoid accidental resolution against any internal index.
+# Retain the dependency versions validated with the upstream AeroNIM models.
 COPY aeronim/requirements.txt /tmp/requirements.txt
-RUN pip install --index-url https://pypi.org/simple -r /tmp/requirements.txt
+RUN pip install \
+    --no-cache-dir \
+    --index-url https://pypi.org/simple \
+    -r /tmp/requirements.txt
 
-# Expose the DAV shared-library package so it is importable by the NIM server.
-# Match the compose bind mount: the Python package itself lands at
-# /opt/python_packages/dav, with /opt/python_packages on PYTHONPATH.
-COPY kit-cae/source/extensions/omni.cae.dav_libs/dav /opt/python_packages/dav
-
-ENV PYTHONPATH="/opt/python_packages:${PYTHONPATH}"
+# Keep RTWT's Kit-CAE 3 dependencies private to its Triton model so they do not
+# replace the Warp version used by the upstream AeroNIM models.
+ENV RTWT_PYTHON_PATH=/opt/rtwt-python
+COPY aeronim/requirements-rtwt.txt /tmp/requirements-rtwt.txt
+RUN pip install \
+    --no-cache-dir \
+    --no-deps \
+    --target "${RTWT_PYTHON_PATH}" \
+    --index-url https://pypi.org/simple \
+    -r /tmp/requirements-rtwt.txt
 
 # Overlay the custom `rtwt` Triton model repository.
 # We intentionally rely on the base NIM image's bundled Triton models

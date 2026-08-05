@@ -1,0 +1,16 @@
+name = "byo_geometry_cube"
+description = "Validator smoke: the static cube fixture passes schema/control/variant checks."
+prompt = """
+Validate the static byo-geometry-cube fixture — its own schema, manifest, and stage. With the
+fixture's schema on the plugin path and its stage supplied, validation should pass with no errors,
+confirming only the schema/control/variant wiring checked by the validator.
+"""
+
+[validate]
+manifest = "source/specializations/auto-aero/examples/byo-geometry-cube/workflow.toml"
+schemas = ["RtwtCubeAppStateAPI"]
+schema_plugins = ["source/specializations/auto-aero/examples/byo-geometry-cube/schema"]
+stage = "source/specializations/auto-aero/examples/byo-geometry-cube/stage.usda"
+
+[expect]
+ok = true

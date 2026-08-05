@@ -26,6 +26,9 @@ class ComputeStack(Stack):
         vpc: ec2.Vpc,
         use_external_nim: bool = False,
         repo_bucket: s3.IBucket = None,
+        usd_url: str = "/home/ubuntu/usd/world_rtwt_minimal.usda",
+        stl_path_format: str = "/data/low_res/detailed_car_{}/aero_suv_low.stl",
+        kit_app: str = "omni.rtwt.webrtc.kit",
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -146,6 +149,12 @@ class ComputeStack(Stack):
         user_data_script = user_data_script.replace("${COMPOSE_UP_OPTIONS}", compose_up_options)
         user_data_script = user_data_script.replace("${CUDA_DEVICE_AERONIM_ENV}", cuda_device_aeronim_env)
         user_data_script = user_data_script.replace("${DEFAULT_NIM_TRITON_IP_ADDRESS}", default_nim_triton_ip_address)
+
+        # Per-workflow deployment literals (automotive-aero defaults; overridable via CDK context
+        # so a new digital-twin demo retargets the stage / STL inputs / kit app without editing core).
+        user_data_script = user_data_script.replace("${USD_URL}", usd_url)
+        user_data_script = user_data_script.replace("${STL_PATH_FORMAT}", stl_path_format)
+        user_data_script = user_data_script.replace("${KIT_APP}", kit_app)
 
         # Add the script to user data
         user_data.add_commands(user_data_script)

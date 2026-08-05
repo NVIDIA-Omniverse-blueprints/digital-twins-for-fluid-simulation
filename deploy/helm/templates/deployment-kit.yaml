@@ -50,8 +50,9 @@ spec:
             - -c
             - |
               set -eu
-              cp -R /payload/data   /stage/
-              cp -R /payload/stages /stage/
+              cp -R /payload/data     /stage/
+              cp -R /payload/stages   /stage/
+              cp -R /payload/workflow /stage/
           volumeMounts:
             - name: rtwt-data
               mountPath: /stage

@@ -52,10 +52,10 @@ log_message = "The redirected argument -n to --image-tag has new behavior. If a 
 [repo_build]
 fetch.before_pull_commands = [
     # tell Kit-CAE to use same Kit-version as we will use for this app (specified in tools/deps/kit-sdk.packman.xml)
-    ["${root}/kit-cae/repo${shell_ext}", "select_kit_version", "--version", "109.0.4", "--no-use-symlinks"],
+    ["${root}/kit-cae/repo${shell_ext}", "select_kit_version", "--version", "110.1.3", "--no-use-symlinks"],
 
     # build kit-cae
-    ["${root}/kit-cae/repo${shell_ext}", "--set-token", "vs_version=${vs_version}", "build", "-r"]
+    ["${root}/kit-cae/repo${shell_ext}", "--set-token", "vs_version:${vs_version}", "build", "-r"]
 ]
 
 [repo_build.build]
@@ -69,8 +69,8 @@ link_host_toolchain = true
 # Filter on Visual Studio version e.g.: Visual Studio 2022. Empty string will match all years and prioritize the newest.
 # You can manually set the version to a specific version e.g "vs2022" or "vs2019".
 # Alternatively, you pass it as a command line argument as follows:
-# > repo.bat --set-token vs_version=vs2019 build ..., or
-# > repo.bat --set-token vs_version=vs2022 build ...
+# > repo.bat --set-token vs_version:vs2019 build ..., or
+# > repo.bat --set-token vs_version:vs2022 build ...
 vs_version = ""
 
 "token:vs_version!=null".vs_version = "${vs_version}"
@@ -108,24 +108,38 @@ licensing_enabled = false
 publish_pip_cache = false
 
 ########################################################################################################################
+# Post-build checks
+########################################################################################################################
+
+[repo_build.post_build]
+# Boundary guard: fail the build if the use-case-agnostic core (source/core/**)
+# takes on a dependency on the automotive-aero specialization. Invoked via the repo's
+# bundled packman python so it works in both the host build and the in-container
+# Dockerfile build (where system python3 is not on PATH).
+"platform:linux-x86_64".commands = [
+    ["${root}/tools/packman/python.sh", "${root}/tools/ci/check_core_boundary.py"],
+]
+
+########################################################################################################################
 # Extensions precacher
 ########################################################################################################################
 
 [repo_precache_exts]
 # Extension search folders (extends base template to include Kit-CAE extensions/apps)
 ext_folders = [
-  "${root}/source/extensions",
-  "${root}/source/apps",
+  "${root}/source/core/extensions",
+  "${root}/source/core/apps",
+  "${root}/source/specializations/auto-aero/extensions",
+  "${root}/source/specializations/auto-aero/apps",
   "${root}/kit-cae/source/extensions",
-  "${root}/kit-cae/source/legacy_extensions",
   "${root}/kit-cae/source/apps",
 ]
 
 # Apps to run and precache
 apps = [
-    "${root}/source/apps/omni.rtwt.kit",
-    "${root}/source/apps/omni.rtwt.editor.kit",
-    "${root}/source/apps/omni.rtwt.webrtc.kit",
+    "${root}/source/core/apps/omni.rtwt.kit",
+    "${root}/source/specializations/auto-aero/apps/omni.rtwt.editor.kit",
+    "${root}/source/specializations/auto-aero/apps/omni.rtwt.webrtc.kit",
 ]
 
 registries = [

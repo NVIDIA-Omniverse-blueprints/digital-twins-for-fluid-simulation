@@ -34,6 +34,11 @@ def context_bool(name: str, default: bool) -> bool:
     raise ValueError(f"{name} must be a boolean value")
 
 
+def context_string(name: str, default: str) -> str:
+    value = app.node.try_get_context(name)
+    return str(value) if value is not None else default
+
+
 env = cdk.Environment(
     account=os.getenv("AWS_ACCOUNT_ID"),
     region=os.getenv("AWS_REGION")
@@ -41,6 +46,13 @@ env = cdk.Environment(
 
 split_deployment = context_bool("splitDeployment", True)
 allowed_ip_ranges = app.node.try_get_context("allowedIpRanges") or None
+
+# Per-workflow deployment literals — automotive-aero defaults; override for a new digital-twin demo
+# via e.g. `cdk deploy -c usdUrl=... -c stlPathFormat=... -c kitApp=...`. The core deploy code stays
+# use-case-agnostic.
+usd_url = context_string("usdUrl", "/home/ubuntu/usd/world_rtwt_minimal.usda")
+stl_path_format = context_string("stlPathFormat", "/data/low_res/detailed_car_{}/aero_suv_low.stl")
+kit_app = context_string("kitApp", "omni.rtwt.webrtc.kit")
 
 MATCH_RANGES_PATTERN = r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[3][0-9]"
 assert allowed_ip_ranges is None or re.match(MATCH_RANGES_PATTERN, allowed_ip_ranges), \
@@ -96,6 +108,9 @@ if split_deployment:
         vpc=network_stack.vpc,
         use_external_nim=True,
         repo_bucket=repo_artifact_stack.bucket,
+        usd_url=usd_url,
+        stl_path_format=stl_path_format,
+        kit_app=kit_app,
         tags=tags,
         env=env,
         description="Omniverse/Frontend compute infrastructure for CAE Blueprint"
@@ -130,6 +145,9 @@ else:
         vpc=network_stack.vpc,
         use_external_nim=False,
         repo_bucket=repo_artifact_stack.bucket,
+        usd_url=usd_url,
+        stl_path_format=stl_path_format,
+        kit_app=kit_app,
         tags=tags,
         env=env,
         description="Compute infrastructure for Omniverse CAE Blueprint"

@@ -82,6 +82,23 @@ let _pendingBridgeSend = false;
 let _bridgeSendTimer = null;
 let _bridgePrev = {};
 
+// Explore and Compare keep independent state. Compare shows one fixed, pre-baked combo (the cached
+// result sets were baked for it); Explore drives the live/variable combo. Entering Compare snapshots
+// Explore's full state and pins the fixed combo (so the velocity-driven colormap matches the cached
+// data); exiting restores Explore's full state. Compare retains its own last viz across visits.
+const FIXED_COMBO = { velocity: 25, spoiler: 'On', rims: 'Standard', mirrors: 'On' };  // the baked combo
+const COMPARE_VIZ_KEYS = ['vizMode', 'vizField', 'sliceDirection', 'sliderValue'];
+let _exploreSnapshot = null;   // full Explore bridge state, restored on exit
+let _compareVizSnapshot = null;  // Compare's own viz, restored on re-entry
+function _snapshotViz() {
+    const s = window.trame.state.state;
+    return Object.fromEntries(COMPARE_VIZ_KEYS.map(k => [k, s[k]]));
+}
+function _snapshotAll() {
+    const s = window.trame.state.state;
+    return Object.fromEntries(getBridgeKeys().map(k => [k, s[k]]));
+}
+
 function currentBridgeState() {
     const keys = getBridgeKeys();
     const ts = window.trame.state.state;
@@ -185,6 +202,63 @@ window.RTWTControls = {
     },
 };
 
+// ── Comparison view ──────────────────────────────────────────────────────────
+// Comparison view actions. Everything is driven through window.RTWTControls.set — the SAME debounced
+// set_state bridge the Explore panel uses. The `comparisonResultSet` AppState control is mapped on the
+// Kit side (manifest callback → inference resultSetOverride) so result-set switching rides the same
+// clean operator pass as a viz-mode change. No bespoke requests and no stage poking. app.py inline
+// @click/@end handlers call ONLY these single-call methods, because Vue cannot compile multi-statement
+// inline JS.
+window.RTWTComparison = {
+    enterView() {
+        console.log('[RTWTComparison] enterView');
+        // Only "both" has an Explore panel to snapshot and restore on exit; "compare" has none.
+        if ((window.trame.state.state.ui_panels ?? 'both') === 'both') {
+            _exploreSnapshot = _snapshotAll();
+        }
+        window.trame.state.set('comparison_active', true);
+        window.trame.state.set('comparison_result_set', 'surrogate');
+        // One patch → one set_state → one clean operator pass: pin the fixed baked combo (so the
+        // colormap matches the cached data), restore Compare's last viz, and show the AI surrogate.
+        const patch = { ...FIXED_COMBO, comparisonResultSet: 'surrogate' };
+        if (_compareVizSnapshot) Object.assign(patch, _compareVizSnapshot);
+        applyLocalStatePatch(patch);
+    },
+    exitView() {
+        // Compare-only / explore-only have no Explore panel to return to — exit is a no-op.
+        if ((window.trame.state.state.ui_panels ?? 'both') !== 'both') return;
+        console.log('[RTWTComparison] exitView');
+        _compareVizSnapshot = _snapshotViz();          // remember Compare's viz for the next enter
+        window.trame.state.set('comparison_active', false);
+        // Restore Explore's full state (its combo + viz) and clear the override → live combo returns.
+        applyLocalStatePatch({ ...(_exploreSnapshot || {}), comparisonResultSet: 'off' });
+    },
+    // resultSet in {'ground_truth', 'surrogate', 'diff'}
+    selectResultSet(resultSet) {
+        console.log('[RTWTComparison] selectResultSet', resultSet);
+        window.trame.state.set('comparison_result_set', resultSet);          // UI highlight
+        if (resultSet === 'diff') {
+            // Diff is Volume/Slice only (signed scalar deltas). Coerce a path mode to Volume in the
+            // SAME patch so one set_state drives both — the binding engine picks the *Delta variant.
+            const m = window.trame.state.state.vizMode;
+            const patch = { comparisonResultSet: 'diff' };
+            if (m !== 'Volume' && m !== 'Slice') patch.vizMode = 'Volume';
+            applyLocalStatePatch(patch);
+        } else {
+            window.RTWTControls.set('comparisonResultSet', resultSet);       // drive the render
+        }
+    },
+    // A viz change inside the comparison panel — identical to Explore's path.
+    setViz(key, value) {
+        console.log('[RTWTComparison] setViz', key, value);
+        window.RTWTControls.set(key, value);
+    },
+    // Position slider: read the v_model'd value from live state, then set via the bridge.
+    setPosition(key) {
+        window.RTWTControls.set(key, window.trame.state.state[key]);
+    },
+};
+
 /**
  * Subscribes to Kit signals. Two signals are handled directly here as
  * generic conventions:
@@ -216,9 +290,19 @@ function registerKitSignals() {
     let _notifTimer = null;
     window.KitStreamer.onSignal('notification_signal', ({ active, message, kind }) => {
         clearTimeout(_notifTimer);
-        window.trame.state.set('notification_active',  !!active);
-        window.trame.state.set('notification_message', message || '');
-        if (active && kind === 'transient') {
+        const isActive = !!active;
+        if (isActive) {
+            // Populate the content before opening the snackbar so a fast signal
+            // cannot render an active notification with an empty message.
+            window.trame.state.set('notification_message', message || '');
+            window.trame.state.set('notification_active', true);
+        } else {
+            // Vuetify keeps the snackbar mounted during its leave transition.
+            // Retain the message until the next notification so that shell is
+            // never visible with its content already cleared.
+            window.trame.state.set('notification_active', false);
+        }
+        if (isActive && kind === 'transient') {
             _notifTimer = setTimeout(
                 () => window.trame.state.set('notification_active', false), 2000);
         }
@@ -235,21 +319,39 @@ function registerKitSignals() {
 }
 
 /**
- * Fetches Kit's available-options payload and forwards it verbatim to the
- * `apply_available_options` trame trigger. Interpretation lives on the
- * Python side — this function is transport only.
+ * Fetches Kit's available-options payload and applies it directly to trame
+ * state (velocity_options / spoiler_options / mirrors_options / rims_options /
+ * precaching_available).
  *
  * Called from pullStateFromKit once Kit's Python handlers are known to be
- * responding, so no retry loop is needed here.
+ * responding; retries with backoff so a single dropped/slow response doesn't
+ * leave the lite UI unrestricted (these options gate the rims/mirrors grey-out).
  */
-async function pullAvailableOptionsFromKit() {
+async function pullAvailableOptionsFromKit(attempt = 0) {
     const result = await sendWithTimeout('get_available_options', {}).catch(() => null);
     if (!result) {
-        console.warn('[app_streamer] get_available_options returned no data');
+        if (attempt < 20) {
+            setTimeout(() => pullAvailableOptionsFromKit(attempt + 1), 500);
+            return;
+        }
+        console.warn('[app_streamer] get_available_options returned no data after retries');
         return;
     }
-    console.log('[app_streamer] forwarding available options to trame:', result);
-    window.trame.trigger('apply_available_options', [result]);
+    // Apply directly to trame state — the same path applyKitState/state_sync_signal use.
+    // Crucially, call dirty() after set() for ARRAY values: trame/Vue does not reliably detect a
+    // change to an array/object reference without it (applyKitState does the same for colormap
+    // dicts). Setting state directly is required here — a Python @ctrl.trigger round-trip does not
+    // reliably populate these options.
+    const opts = result.options || {};
+    const setOpt = (key, val) => {
+        window.trame.state.set(key, val);
+        if (val && typeof val === 'object') window.trame.state.dirty(key);
+    };
+    setOpt('velocity_options', opts.velocity || []);
+    setOpt('spoiler_options', opts.spoiler ?? null);
+    setOpt('mirrors_options', opts.mirrors ?? null);
+    setOpt('rims_options', opts.rims ?? null);
+    window.trame.state.set('precaching_available', result.precaching_available !== false);
 }
 
 /**
@@ -278,6 +380,11 @@ function pullStateFromKit() {
             _bridgePrev = currentBridgeState().state;
         }
         pullAvailableOptionsFromKit();
+        // Compare-only: no Explore tab exists to enter Compare from, so enter it once the initial
+        // state is synced — pins the fixed combo and shows the default result set.
+        if ((window.trame.state.state.ui_panels ?? 'both') === 'compare') {
+            window.RTWTComparison.enterView();
+        }
     };
     trySync();
 }

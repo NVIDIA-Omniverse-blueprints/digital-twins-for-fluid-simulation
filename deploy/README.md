@@ -38,6 +38,8 @@ web UI. The Kit stream accepts one active client.
 - A registry your cluster can pull from for cloud installs.
 - `git lfs pull` before building images so cache and stage assets are real
   files, not LFS pointers.
+- `git submodule update --init --recursive` before building the Kit image. The
+  recorded gitlink pins the tested Kit-CAE 3.0 revision from its `main` line.
 
 ## Validation Levels
 
@@ -47,6 +49,16 @@ web UI. The Kit stream accepts one active client.
 | Cluster smoke | `deploy/helm/test.sh --cluster --mode lite` | Install, rollout, and in-cluster service connectivity. | Browser WebRTC/rendering. |
 | Local GPU cluster | `deploy/helm/test.sh --microk8s --mode lite` after image import | Local image startup, GPU scheduling, Kit + web wiring. MicroK8s is the documented example. | Registry pulls or cloud routing. |
 | Cloud/standard | Install commands below | Registry, LoadBalancer, GPU Operator, AeroNIM path. | Managed control-plane integration. |
+
+## Build the AeroNIM Image
+
+The AeroNIM image resolves its pinned Python packages from public PyPI:
+
+```sh
+docker build \
+  -f aeronim/Dockerfile.aeronim \
+  -t rtdt-aeronim:latest .
+```
 
 ## Local Render Check
 
@@ -83,9 +95,10 @@ microk8s config > ~/.kube/microk8s-rtdt.yaml
 export KUBECONFIG=~/.kube/microk8s-rtdt.yaml
 ```
 
-Build and import local images:
+Build and import the local images:
 
 ```sh
+git submodule update --init --recursive
 git lfs pull
 docker compose build kit web
 docker build -f Dockerfile.data -t rtdt-data:latest .
@@ -143,6 +156,7 @@ Kubernetes needs four images:
   `aeronim/Dockerfile.aeronim`.
 
 ```sh
+git submodule update --init --recursive
 git lfs pull
 docker compose build kit web
 docker build -f Dockerfile.data -t rtdt-data:latest .

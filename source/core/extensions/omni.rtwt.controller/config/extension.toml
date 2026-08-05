@@ -1,0 +1,43 @@
+
+[package]
+title = "omni.rtwt.controller"
+version = "1.0.0"
+description = "Real-Time Wind Tunnel Controller Extension"
+readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI.
+category = "internal"  # One of categories for UI.
+keywords = ["kit", "rtwt", "controller"]
+icon = "data/icon.png"  # Icon to show in the extension manager
+reloadable = true
+
+
+[settings]
+# Disable click-to-select in the viewport
+exts."omni.rtwt.controller".disable_viewport_selection = false
+
+# Applied AppState API-schema names the controller introspects for knobs.
+# Empty in core; a workflow/specialization supplies its own schema names (see the leaf .kit apps).
+exts."omni.rtwt.controller".app_state_api_schemas = []
+
+# Path to this workflow's manifest (TOML). Empty in core; a workflow/specialization
+# sets it (see the leaf .kit apps), e.g. "${app}/../rtwt/workflow/workflow.toml". A missing/unset
+# manifest leaves the controller with no workflow (core-only).
+exts."omni.rtwt.controller".workflow_manifest = ""
+
+[dependencies]
+"omni.cae.viz" = {}
+"omni.rtwt.inference" = {}
+"omni.kit.async_engine" = {}
+"omni.kit.livestream.messaging" = {}
+"omni.usd" = {}
+"omni.kit.ui.actions" = {}
+"omni.kit.quicklayout" = {}
+"omni.client" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.manipulator.camera" = {}
+
+[[python.module]]
+name = "omni.rtwt.controller"
+
+[[test]]
+# Generic-path test (the non-aero fake-workflow fixture) + engine/expr/validator unit
+# tests. Core-only: NO dependency on the auto-aero specialization (the boundary guard enforces it).

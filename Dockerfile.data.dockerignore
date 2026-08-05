@@ -1,6 +1,14 @@
 # Docker BuildKit picks this file up when building with `-f Dockerfile.data`.
-# The data image only needs the data and stages directories; everything else
-# in the repo is noise for this build.
+# The data image only needs the auto-aero data, stages, and workflow directories; everything
+# else in the repo is noise for this build. Docker cannot re-include a path whose
+# parent directory is excluded, so re-include the chain one level at a time.
 *
-!data
-!stages
+!source
+source/*
+!source/specializations
+source/specializations/*
+!source/specializations/auto-aero
+source/specializations/auto-aero/*
+!source/specializations/auto-aero/data
+!source/specializations/auto-aero/stages
+!source/specializations/auto-aero/workflow

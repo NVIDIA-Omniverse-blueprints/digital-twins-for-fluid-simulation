@@ -18,10 +18,13 @@ Dockerfile
 # Exclude components that we don't need when building
 # the container images
 .git
+# Local Compose configuration can contain API keys and must never enter the
+# Docker build context or intermediate layers.
+.env
 
 # data/ and stages/ are bind-mounted by docker compose and provided to the
 # Kubernetes deployment by the separate data-image build (see Dockerfile.data
 # and Dockerfile.data.dockerignore). Keep them out of the kit image build
 # context here so `docker build .` produces a lean kit image.
-data
-stages
+source/specializations/auto-aero/data
+source/specializations/auto-aero/stages

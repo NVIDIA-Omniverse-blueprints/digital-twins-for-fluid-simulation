@@ -52,7 +52,9 @@ spec:
               set -eu
               cp -R /payload/data/.   /opt-data/
               cp -R /payload/stages/. /opt-stages/
-              test -f /opt-stages/BaseCAEVariants.usda
+              {{- with .Values.aeronim.requiredStageFile }}
+              test -f /opt-stages/{{ . }}
+              {{- end }}
           volumeMounts:
             - name: aeronim-data
               mountPath: /opt-data

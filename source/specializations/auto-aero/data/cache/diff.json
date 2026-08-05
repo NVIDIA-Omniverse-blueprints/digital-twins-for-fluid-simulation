@@ -1,0 +1,9 @@
+{
+  "comparison_kind": "comparison_diff",
+  "source_surrogate": "9eae54bb9f680734.npz",
+  "requested_outputs": [
+    "nvdb_pressure",
+    "nvdb_velocity_magnitude"
+  ],
+  "created": "2026-06-20T05:58:27.813065+00:00"
+}

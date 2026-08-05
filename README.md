@@ -151,6 +151,9 @@ This repository uses the `kit-cae` submodule. If you cloned without `--recurse-s
 git submodule update --init --recursive
 ```
 
+The submodule pins the tested Kit-CAE 3 revision from its `main` branch, and the build pulls
+Kit-CAE with its associated dependencies.
+
 Copy the `.env_template` file to `.env`:
 
 ```sh
@@ -159,13 +162,9 @@ cp .env_template .env
 
 Review `.env` and decide which profile to run (see [Deployment modes](#deployment-modes)). The template defaults to `COMPOSE_PROFILES=standard`; set it to `lite` to run the offline, single-GPU stack.
 
-The Docker images are built on first `docker compose up -d`. If you prefer to build separately (useful for CI or when iterating on the Dockerfile):
-
-```sh
-docker compose build
-```
-
-This respects whichever profile is active in `.env`: `standard` builds kit + web + aeronim, `lite` builds kit + web.
+The Docker images are built on first `docker compose up -d`. An explicit
+`docker compose build` respects whichever profile is active in `.env`: `standard` builds Kit, web,
+and AeroNIM, while `lite` builds Kit and web.
 
 #### Open Required Ports
 
@@ -174,6 +173,11 @@ This blueprint uses Kit WebRTC streaming and the `@nvidia/omniverse-webrtc-strea
 - Web/proxy: `80/tcp` (configurable via `RTWT_HTTP_HOST_PORT`) and optionally `443/tcp` (configurable via `RTWT_HTTPS_HOST_PORT`). The Trame service is also published directly on `WEB_HOST_PORT` for local development.
 - Kit signaling fallback: `49100/tcp` if the browser connects to Kit directly instead of through the launch proxy.
 - Kit media/transport: `1024/udp, 47995-48012/tcp, 47995-48012/udp, 49000-49007/tcp, 49000-49007/udp`
+
+The standard profile also publishes Triton on `8080/tcp` for readiness checks and split-host
+deployments. RTDT does not add authentication to that API; restrict it to the local host or a trusted
+private network with host firewall or cloud security-group rules, and never expose it to the public
+internet.
 
 
 #### Configuration for Clouds and VPNs
@@ -222,7 +226,7 @@ The blueprint has two deployment profiles. The same `docker compose up -d` comma
 |---|---|---|
 | **GPU** | 1× RTX ≥ 16 GB VRAM | 2× RTX ≥ 40 GB each, or 1× ≥ 80 GB |
 | **NGC account** | Not required | Required for AeroNIM build/runtime |
-| **Inference** | Pre-baked cache in `data/cache/` (shipped via Git LFS) | Live DoMINO inference via AeroNIM |
+| **Inference** | Pre-baked cache in `source/specializations/auto-aero/data/cache/` (shipped via Git LFS) | Live DoMINO inference via AeroNIM |
 | **Controls** | Velocity + Spoiler | Velocity + Spoiler + Rims + Mirrors |
 
 The lite profile lets the blueprint run on a single GPU (RTX 5080 or better) without NGC access. The standard profile is required to drive live inference, for example to swap in a different car model, retrain, or exercise the full parameter space. See [Deployment modes](#deployment-modes) below for cache regeneration and UI details.
@@ -237,7 +241,7 @@ COMPOSE_PROFILES=standard
 
 # or
 
-# Offline stack (kit-lite + web), served from data/cache/
+# Offline stack (kit-lite + web), served from source/specializations/auto-aero/data/cache/
 COMPOSE_PROFILES=lite
 ```
 
@@ -264,23 +268,67 @@ When initialization is complete, open `http://PUBLIC_IP_ADDR_OF_THE_MACHINE` in 
 
 ### Deployment modes
 
-**Lite profile.** Skips the 39 GB AeroNIM container entirely and serves four velocities × two spoiler states (eight combinations) from a shipped cache in `data/cache/`. Rim and mirror toggles are greyed out in the UI; the frontend queries Kit on connect to learn which option values have a matching cache entry and restricts itself accordingly. The rest of the experience (streaming, camera controls, Flow / Streamlines / Volume / Slice visualization, colormaps) behaves identically to the standard profile. Every interaction hits the on-disk cache (and then the in-memory cache on repeat), so response is effectively instant: no Triton round-trip, no GPU inference run.
+**Lite profile.** Skips the 39 GB AeroNIM container entirely and serves four velocities × two spoiler states (eight combinations) from a shipped cache in `source/specializations/auto-aero/data/cache/`. Rim and mirror toggles are greyed out in the UI; the frontend queries Kit on connect to learn which option values have a matching cache entry and restricts itself accordingly. The rest of the experience (streaming, camera controls, Flow / Streamlines / Volume / Slice visualization, colormaps) behaves identically to the standard profile. Every interaction hits the on-disk cache (and then the in-memory cache on repeat), so response is effectively instant: no Triton round-trip, no GPU inference run.
 
 **Standard profile: CACHE panel.** In the standard profile the right-hand UI exposes a **CACHE** panel that walks the full combination space once, caches the results in memory for the remainder of the session, and then serves every subsequent interaction from that cache. It's a one-time warm-up that trades startup time for smoother interactive response across the full parameter space. The panel is hidden in lite (the disk cache is the single source of truth there).
 
-**Regenerating the lite cache.** Cache entries are SHA256-keyed `.npz` files with a sibling `.json` sidecar recording the originating `RtwtInferenceAppStateAPI` values. If the schema, the underlying model, or the combo set changes, rebake as follows:
+**Regenerating the lite cache.** Cache entries are SHA256-keyed `.npz` files with a sibling `.json` sidecar recording the originating `RtwtInferenceAppStateAPI` values. The key covers AppState values and requested outputs, but not the underlying model payload or domain. Always bake into a new empty staging directory so an old entry cannot be mistaken for a valid hit after a model, geometry, or domain change:
 
-1. Run the kit app **on the host** (not inside the container; the `data/cache/` bind mount has UID-mismatch issues) with a reachable Triton and the following Carb settings:
+1. Create an empty staging directory. Build the host app, start only AeroNIM, and launch the editor
+   with an absolute staging path (the Compose data mount is read-only and can also have
+   UID-mismatch issues):
 
+   ```bash
+   ./repo.sh build -r
+   docker compose --profile standard up -d aeronim
+   ./repo.sh launch -n omni.rtwt.editor.kit -- \
+     --/exts/omni.rtwt.inference/triton_http_url=localhost:8080 \
+     --/exts/omni.rtwt.inference/offline_mode=true \
+     --/exts/omni.rtwt.inference/generate_if_missing=true \
+     --/exts/omni.rtwt.inference/offline_cache_dir=/absolute/path/to/empty/staging-cache
    ```
-   --/exts/omni.rtwt.inference/offline_mode=true
-   --/exts/omni.rtwt.inference/generate_if_missing=true
+
+2. In the editor, drive `/World/AppState` through every tuple you intend to ship. Because staging
+   started empty, each tuple must miss, call Triton, and write a new `.npz`/`.json` pair.
+3. Check that every hashed sidecar has a payload, every payload has a sidecar, and no two keys claim
+   the same tuple. Review the printed tuples against the intended set:
+
+   ```bash
+   RTDT_STAGING_CACHE=/absolute/path/to/empty/staging-cache python - <<'PY'
+   import json, os, re
+   from pathlib import Path
+
+   root = Path(os.environ["RTDT_STAGING_CACHE"])
+   hashed = re.compile(r"[0-9a-f]{16}")
+   json_keys = {p.stem for p in root.glob("*.json") if hashed.fullmatch(p.stem)}
+   npz_keys = {p.stem for p in root.glob("*.npz") if hashed.fullmatch(p.stem)}
+   if json_keys != npz_keys:
+       raise SystemExit(f"unpaired cache files: json_only={sorted(json_keys - npz_keys)}, npz_only={sorted(npz_keys - json_keys)}")
+   tuples = {}
+   for key in sorted(json_keys):
+       state = json.loads((root / f"{key}.json").read_text()).get("app_state")
+       if not isinstance(state, dict):
+           raise SystemExit(f"{key}.json has no app_state object")
+       signature = json.dumps(state, sort_keys=True)
+       if signature in tuples:
+           raise SystemExit(f"duplicate tuple: {tuples[signature]} and {key}")
+       tuples[signature] = key
+       print(key, signature)
+   print(f"validated {len(tuples)} unique cache tuples")
+   PY
    ```
 
-2. Drive the app through every combination you want to ship. On a cache miss the operator calls Triton and writes the result back to `data/cache/`.
-3. Commit the new `.npz` files (LFS-tracked) and `.json` sidecars (plain text, diffable).
+4. Validate every staged tuple in lite mode, plus an unsupported tuple to confirm it is rejected
+   without leaving stale results. Replace the tracked 16-hex-character tuple pairs as one curated
+   set rather than merging new files into old ones. Preserve or deliberately regenerate the named
+   comparison files (`mock_ground_truth.*` and `diff.*`).
+5. Commit the approved `.npz` files (LFS-tracked) and `.json` sidecars (plain text, diffable), then
+   stop the temporary AeroNIM service with `docker compose --profile standard down`.
 
-Stale sidecars referencing removed schema keys remain on disk until deleted; the `get_available_options` scan ignores values that are not present in any sidecar, so the UI will simply not surface obsolete combinations.
+Do not leave obsolete `.npz`/`.json` pairs when the schema, model, domain, outputs, or supported tuple set changes. The
+`get_available_options` scan aggregates every `app_state` key and value in every sidecar; it does
+not filter stale entries against the current schema or manifest, so leftover sidecars can
+incorrectly widen the options offered by the lite UI.
 
 ### Kubernetes deployment (Helm)
 
@@ -311,6 +359,16 @@ When a mode exposes additional controls (field selector, slice direction, plane 
 
 A set of predefined camera views (left panel) lets you switch perspective, plus an **ORBIT** button for continuous rotation.
 
+### Comparison view
+
+Besides the live **Explore** view, the UI includes a **Comparison** view for a single pre-baked configuration. It shows three result sets — the surrogate prediction, a reference (mock ground-truth), and their signed difference — so you can see where the surrogate and the reference disagree. Switching between them is instant: the comparison results are served from the shipped cache, with no live inference, so the Comparison view works in both profiles.
+
+The `RTWT_UI_PANELS` setting in `.env` selects which panels appear:
+
+- `both` (default) — the live Explore panel and the Comparison panel
+- `explore` — the Explore panel only
+- `compare` — the Comparison panel only
+
 
 ## Known issues
 
@@ -327,11 +385,11 @@ A set of predefined camera views (left panel) lets you switch perspective, plus 
 
 - Please note that this blueprint is designed to provide an example of integrating the workflow for developers and demonstrate key concepts and patterns. It is not a turn-key application ready for production deployment without customization.
 - The DoMINO-Automotive-Aero NIM (used by the standard profile) may not be suitable for all external aerodynamics use-cases; developers should read the NIM details to learn about its own limitations.
-- **Lite profile** only serves the 8 combinations captured in `data/cache/` (4 velocities × spoiler on/off, with mirrors fixed at On and rims fixed at Standard). Rims and mirrors controls are disabled in the UI for values without a cache entry. Any state outside the cached set produces a logged cache-miss error; there is no AeroNIM fallback. If you need the full control surface, run the standard profile.
+- **Lite profile** only serves the 8 combinations captured in `source/specializations/auto-aero/data/cache/` (4 velocities × spoiler on/off, with mirrors fixed at On and rims fixed at Standard). Rims and mirrors controls are disabled in the UI for values without a cache entry. Any state outside the cached set produces a logged cache-miss error; there is no AeroNIM fallback. If you need the full control surface, run the standard profile.
 
 ## Licenses
 
-This blueprint is licensed under the Omniverse License Agreement found [here](/LICENSE.md). 
+This blueprint is licensed under the Omniverse License Agreement found [here](LICENSE.md).
 This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.
 
 ## Troubleshooting
@@ -416,7 +474,9 @@ docker compose logs kit > log.txt
     git submodule status --recursive
     ```
 
-    This should show `kit-cae` with a commit hash. If the line starts with `-`, or if `kit-cae/` is missing or empty, initialize the submodules:
+    This should show `kit-cae` with the pinned Kit-CAE 3.0 commit hash. A leading `-` means the
+    submodule is not initialized; a leading `+` means its working tree is not at the revision
+    recorded by this repository. If `kit-cae/` is missing or empty, initialize the submodules:
 
     ```
     git submodule update --init --recursive
@@ -434,13 +494,13 @@ docker compose logs kit > log.txt
 
     If an error is shown, check that Git LFS is configured correctly.
 
-3. Verify that the stage files are properly tracked by Git LFS:
+3. Verify that a representative binary asset is properly tracked by Git LFS:
 
     ```
-    git lfs ls-files | grep stages/Main.usda
+    git lfs ls-files | grep source/specializations/auto-aero/data/low_res/detailed_car_500/aero_suv_low.ply
     ```
 
-    This should return `stages/Main.usda` (the root stage loaded by the kit app).
+    This should return the PLY path. `Main.usda` is a normal text file and is not LFS-tracked.
 
 4. Ensure the actual file content is downloaded:
 
@@ -451,10 +511,13 @@ docker compose logs kit > log.txt
 5. Check that the pulled files are real content, not small LFS pointer stubs:
 
     ```
-    ls -lh stages/Main.usda data/low_res/detailed_car_*/*.ply
+    ls -lh source/specializations/auto-aero/data/low_res/detailed_car_500/aero_suv_low.ply source/specializations/auto-aero/data/cache/190801d8395215a6.npz
     ```
 
-    Each file should be its full size (USD layers in the hundreds of KB to low MB range; PLY files ~6 MB each). If any are only a few hundred bytes, git LFS did not pull the content. With the **lite** profile also check `data/cache/` contains the pre-baked `.npz` files plus their `.json` sidecars.
+    Each file should be its full size (the representative PLY is about 6 MB and the cache entry is
+    tens of MB). If either is only a few hundred bytes, Git LFS did not pull the content. With the
+    **lite** profile also check `source/specializations/auto-aero/data/cache/` contains the
+    pre-baked `.npz` files plus their `.json` sidecars.
 
     If any of the above steps shows an error, re-download all git lfs assets:
 

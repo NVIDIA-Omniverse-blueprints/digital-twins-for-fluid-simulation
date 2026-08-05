@@ -1,0 +1,15 @@
+name = "cache_on_visualization"
+description = "Validator smoke: cache_values on a non-inference control is rejected."
+prompt = """
+Validate skills/evals/fixtures/cache_on_visualization.toml against the auto-aero AppState schemas.
+It sets cache_values on a visualization-role control; validation must fail and explain that
+cache_values requires role='inference'.
+"""
+
+[validate]
+manifest = "skills/evals/fixtures/cache_on_visualization.toml"
+schemas = ["RtwtInferenceAppStateAPI", "RtwtVizAppStateAPI"]
+
+[expect]
+ok = false
+error_contains = "cache_values requires role='inference'"

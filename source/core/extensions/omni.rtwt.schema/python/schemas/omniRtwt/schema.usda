@@ -1,0 +1,221 @@
+#usda 1.0
+(
+    """
+        Schema for RTWT
+    """
+    subLayers = [
+        @usd/schema.usda@,
+    ]
+)
+
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+#  its affiliates is strictly prohibited.
+
+over "GLOBAL" (
+    customData = {
+        string libraryName = "omniRtwt"
+        string libraryPath = "."
+        string libraryPrefix = "OmniRtwt"
+        bool skipCodeGeneration = true
+    }
+)
+{
+}
+
+class "RtwtInferenceResultsAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceResultsAPI"
+    }
+    doc = """Marks an OmniSciDataset whose fields are supplied by RTWT inference through Warp SimData."""
+)
+{
+    uniform token omni:rtwt:inference_results:revision = "" (
+        doc = "Atomic revision identifying the complete result payload in the omni.cae.core cache."
+        displayName = "Revision"
+        displayGroup = "RTWT Inference Results"
+    )
+}
+
+class "RtwtInferenceCacheAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceCacheAPI"
+    }
+    doc = """Adding caching related APIs to an inference prim."""
+)
+{
+    uniform bool omni:rtwt:inference_cache:useCache = false (
+        doc = """Specifies whether to use cached data if available."""
+        displayName = "Use Cache"
+        displayGroup = "RTWT Inference Cache"
+    )
+
+    uniform bool omni:rtwt:inference_cache:preCaching = false (
+        doc = """Specifies whether we are currently pre-caching."""
+        displayName = "Pre- Caching"
+        displayGroup = "RTWT Inference Cache"
+    )
+}
+
+class "RtwtInferenceAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "InferenceAPI"
+    }
+    doc = """Inference API used to indicate tag an inference operator"""
+)
+{
+    uniform float omni:rtwt:inference:velocity = 25.0 (
+        doc = "Specifies the velocity (in m/s) to use for streaming inference."
+        displayName = "Velocity"
+        displayGroup = "RTWT Inference"
+    )
+
+    uniform string omni:rtwt:inference:resultSetOverride = "" (
+        doc = """Optional cached result-set filename to load instead of the AppState-derived cache key. Empty = normal live inference. Used by the comparison view to show a specific baked result; loaded disk-only from offline_cache_dir and never triggers Triton."""
+        displayName = "Result Set Override"
+        displayGroup = "RTWT Inference"
+    )
+}
+
+
+class "RtwtResultFieldSelectionAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        string className = "ResultFieldSelectionAPI"
+        token apiSchemaType = "multipleApply"
+        token propertyNamespacePrefix = "omni:rtwt:result_field_selection"
+    }
+    doc = """Maps one inference wire output to a field on an OmniSci result dataset."""
+)
+{
+    rel target (
+        doc = """Relationship to the result OmniSciDataset. Must have exactly one target."""
+        displayGroup = "RTWT Result Field Selection"
+        displayName = "Result Dataset"
+    )
+
+    uniform token fieldName = "" (
+        doc = """OmniSciFieldAPI instance name that receives this output."""
+        displayGroup = "RTWT Result Field Selection"
+        displayName = "Field Name"
+    )
+}
+
+
+
+class "RtwtTransformAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "multipleApply"
+        string className = "TransformAPI"
+        token propertyNamespacePrefix = "omni:rtwt:transform"
+    }
+    doc = """Transform API used to indicate tag a transform operator"""
+)
+{
+    uniform bool flipDirection = false (
+        doc = "Whether the transform operator is inverse i.e. flip -ve and +ve directions."
+        displayName = "Flip Direction"
+        displayGroup = "RTWT Transform"
+    )
+}
+
+class "RtwtModelAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "singleApply"
+        string className = "ModelAPI"
+    }
+    doc = """Used to assign a unique identifier to identify the geometry model being used for the inference"""
+)
+{
+    uniform string omni:rtwt:model:tag = "" (
+        doc = "Identifier string."
+        displayGroup = "RTWT Model"
+        displayName = "Tag"
+    )
+}
+
+class "RtwtControlBindingAPI" (
+    inherits = </APISchemaBase>
+    customData = {
+        token apiSchemaType = "multipleApply"
+        string className = "ControlBindingAPI"
+        token propertyNamespacePrefix = "omni:rtwt:binding"
+    }
+    doc = "Multiple-apply API schema for authoring a control-to-effect binding on the stage: the advanced, USD-native alternative to declaring the binding in the workflow manifest. The USD-Controller binding engine reads these instances alongside manifest-declared bindings and applies each binding when its driving control(s) change. A control's binding lives in exactly one place (manifest or stage), never both."
+)
+{
+    uniform token type = "Attribute" (
+        doc = "The binding kind, which determines how the engine applies the effect."
+        allowedTokens = ["Variant", "Attribute", "Material", "ColormapDomain", "Transform", "Playback", "ViewportScale", "Relationship", "Visibility", "Callback"]
+        displayGroup = "RTWT Control Binding"
+        displayName = "Type"
+    )
+
+    uniform string[] knobs = [] (
+        doc = "Control id(s) that drive this binding. A simple binding lists one; a composed binding (e.g. a Mode variant from vizMode + vizField) lists several and supplies a selectionExpr."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Knobs"
+    )
+
+    rel targets (
+        doc = "Prim(s) the binding writes to (e.g. the geometry prims for a Variant, or the Inference prim for an Attribute)."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Targets"
+    )
+
+    uniform string variantSet = "" (
+        doc = "For type=Variant: the variant set to select on each target."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Variant Set"
+    )
+
+    uniform string selectionExpr = "" (
+        doc = "For type=Variant: optional expression composing the selection from multiple knobs, e.g. {vizMode}_{vizField}. When empty, the single knob value is used directly."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Selection Expression"
+    )
+
+    uniform string attribute = "" (
+        doc = "For type=Attribute: the attribute name to set on each target to the (single) knob value."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Attribute"
+    )
+
+    uniform string materialOn = "" (
+        doc = "For type=Material: the material to bind when the boolean knob is true."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Material On"
+    )
+
+    uniform string materialOff = "" (
+        doc = "For type=Material: the material to bind when the boolean knob is false."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Material Off"
+    )
+
+    uniform string callback = "" (
+        doc = "For type=Callback or ColormapDomain: the name of the specialization adapter (a pure function returning concrete writes) the engine invokes for derived effects."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Callback"
+    )
+
+    uniform string visibleWhen = "" (
+        doc = "Optional expression gating when this binding's control is active/visible, e.g. vizMode==Slice."
+        displayGroup = "RTWT Control Binding"
+        displayName = "Visible When"
+    )
+}

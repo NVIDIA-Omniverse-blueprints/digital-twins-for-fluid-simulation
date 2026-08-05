@@ -1,0 +1,247 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# Workflow manifest for the automotive-aerodynamics specialization.
+#
+# This plain-text file is the readable source of truth for "what this workflow controls,
+# outputs, and visualizes." The use-case-agnostic controller (omni.rtwt.controller) loads it via
+#   exts."omni.rtwt.controller".workflow_manifest = "${app}/../rtwt/workflow/workflow.toml"
+# and drives every knob declaratively — no core code knows anything about aerodynamics.
+#
+# Authority: the USD AppState schema (omni.rtwt.auto_aero.schema) is the typed-knob substrate;
+# each control's runtime default is the value authored on /World/AppState (NOT here). This file
+# layers role / widget / bounds / cache grid / bindings / readouts / views on top.
+
+[workflow]
+id             = "auto_aero"
+label          = "Automotive Aerodynamics"
+app_state_prim = "/World/AppState"
+inference_prim = "/World/Inference"
+default_stage  = "${app}/../rtwt/stages/Main.usda"
+
+# =============================================================================
+# Inference-role controls — feed the cache key + the pre-cache product.
+# The Cartesian product of these cache_values is the 32-combo walk
+# (4 velocities x 2 spoiler x 2 rims x 2 mirrors); asserted in CI.
+# =============================================================================
+[controls.velocity]
+schema_attr  = "omni:rtwt:app_state:velocity"
+role         = "inference"
+widget       = "slider"
+group        = "Flow"
+unit         = "m/s"
+bounds       = { min = 25, max = 100, step = 25 }
+cache_values = [25.0, 50.0, 75.0, 100.0]
+bindings = [
+  { kind = "Attribute", knobs = ["velocity"], targets = ["/World/Inference"], attribute = "omni:rtwt:inference:velocity" },
+  # Dynamic-pressure colormap physics (q = 1/2 rho v^2) is workflow-specific, so it lives in a
+  # specialization callback (omni.rtwt.auto_aero.hooks), not in core. It returns the colormap +
+  # shader domain writes the engine applies inside the change block.
+  { kind = "ColormapDomain", knobs = ["velocity", "comparisonResultSet"], callback = "auto_aero.dynamic_pressure" },
+]
+
+[controls.spoiler]
+schema_attr  = "omni:rtwt:app_state:spoiler"
+role         = "inference"
+widget       = "toggle"
+group        = "Geometry"
+values       = ["On", "Off"]
+cache_values = ["On", "Off"]
+bindings = [
+  { kind = "Variant", knobs = ["spoiler"], targets = ["/World/CarHero", "/World/CarCFD"], variant_set = "Spoiler" },
+]
+
+[controls.rims]
+schema_attr  = "omni:rtwt:app_state:rims"
+role         = "inference"
+widget       = "imageTiles"
+group        = "Geometry"
+values       = ["Standard", "Aero"]
+cache_values = ["Standard", "Aero"]
+bindings = [
+  { kind = "Variant", knobs = ["rims"], targets = ["/World/CarHero", "/World/CarCFD"], variant_set = "Rims" },
+]
+
+[controls.mirrors]
+schema_attr  = "omni:rtwt:app_state:mirrors"
+role         = "inference"
+widget       = "toggle"
+group        = "Geometry"
+values       = ["On", "Off"]
+cache_values = ["On", "Off"]
+bindings = [
+  { kind = "Variant", knobs = ["mirrors"], targets = ["/World/CarHero", "/World/CarCFD"], variant_set = "Mirrors" },
+]
+
+# =============================================================================
+# Visualization-role controls — NOT cache-relevant.
+# =============================================================================
+[controls.vizMode]
+schema_attr = "omni:rtwt:app_state:vizMode"
+role        = "visualization"
+widget      = "select"
+group       = "Visualization"
+values      = ["Empty", "Flow", "Slice", "Streamlines", "Volume"]
+# The CAE "Mode" variant is composed from TWO knobs for Slice/Volume (e.g. "Slice_Pressure") and
+# is the bare vizMode otherwise. The guarded bindings select the composed variant only for
+# Slice/Volume; a bare vizMode would select a non-existent "Slice"/"Volume" variant and silently fail.
+bindings = [
+  # Normal Slice/Volume Mode (when NOT in the comparison diff view).
+  { kind = "Variant", knobs = ["vizMode", "vizField", "comparisonResultSet"], targets = ["/World/CAE"], variant_set = "Mode", selection_expr = "{vizMode}_{vizField}", when_expr = "vizMode in [Slice, Volume] && comparisonResultSet not in [diff]" },
+  # Comparison DIFF: select the matching *Delta Mode variant (hides all the normal prims). The
+  # auto_aero.comparison_override callback makes the matching delta render prim visible (its local
+  # invisible opinion is overridden at runtime, inside this same operator pass, so it repaints cleanly).
+  { kind = "Variant", knobs = ["vizMode", "vizField", "comparisonResultSet"], targets = ["/World/CAE"], variant_set = "Mode", selection_expr = "{vizMode}_{vizField}Delta", when_expr = "vizMode in [Slice, Volume] && comparisonResultSet == diff" },
+  { kind = "Variant", knobs = ["vizMode"], targets = ["/World/CAE"], variant_set = "Mode", when_expr = "vizMode not in [Slice, Volume]" },
+  # Streamlines render at 2x resolution scale, everything else at 1x.
+  { kind = "ViewportScale", knobs = ["vizMode"], when_expr = "vizMode == Streamlines", params = { on = 2.0, off = 1.0 } },
+]
+
+[controls.vizField]
+schema_attr = "omni:rtwt:app_state:vizField"
+role        = "visualization"
+widget      = "switch"
+group       = "Visualization"
+values      = ["VelocityMagnitude", "Pressure"]
+# No standalone binding — participates in the composed Mode variant above via its knobs list.
+
+# Comparison view. Selecting a result set writes the inference resultSetOverride (via a
+# specialization callback that resolves the result-set name -> its baked .npz in the inference
+# offline cache); that write re-runs the inference operator through the normal sync pass — exactly
+# like a velocity change — so the chosen cached result is shown with no stage poking. "off" clears
+# the override (live combo).
+[controls.comparisonResultSet]
+schema_attr = "omni:rtwt:app_state:comparisonResultSet"
+role        = "visualization"
+widget      = "select"
+group       = "Comparison"
+values      = ["off", "surrogate", "ground_truth", "diff"]
+bindings = [
+  { kind = "Callback", knobs = ["comparisonResultSet", "vizMode", "vizField"], callback = "auto_aero.comparison_override" },
+]
+
+[controls.sliceDirection]
+schema_attr  = "omni:rtwt:app_state:sliceDirection"
+role         = "visualization"
+widget       = "select"
+group        = "Visualization"
+values       = ["X", "Y", "Z"]
+visible_when = "vizMode == Slice"
+bindings = [
+  { kind = "Variant", knobs = ["sliceDirection"], targets = ["/World/CAE"], variant_set = "SliceDirection" },
+]
+
+[controls.animatedStreaks]
+schema_attr = "omni:rtwt:app_state:animatedStreaks"
+role        = "visualization"
+widget      = "toggle"
+group       = "Visualization"
+bindings = [
+  # Swap the Streamlines material; the engine toggles cae:viz:operator:enabled for the Material
+  # kind, outside the change block, to force the new material to take effect.
+  { kind = "Material", knobs = ["animatedStreaks"], targets = ["/World/CAE/Streamlines"], material_on = "Materials/AnimatedStreaks", material_off = "Materials/ScalarColor" },
+  { kind = "Playback", knobs = ["animatedStreaks", "vizMode", "playAnimation"], when_expr = "(animatedStreaks && vizMode == Streamlines) || playAnimation" },
+]
+
+[controls.playAnimation]
+schema_attr = "omni:rtwt:app_state:playAnimation"
+role        = "visualization"
+widget      = "toggle"
+# No standalone binding — feeds the Playback when_expr above; toggled when the FullOrbit_Camera view is selected.
+
+[controls.sliderValue]
+schema_attr = "omni:rtwt:app_state:sliderValue"
+role        = "visualization"
+widget      = "slider"
+group       = "Visualization"
+bounds      = { min = -100, max = 100, step = 1 }
+bindings = [
+  # Reuses the existing RtwtTransformAPI slider->ROI path; the ROI prim is the app-state's roi rel.
+  { kind = "Transform", knobs = ["sliderValue"], params = { roi_rel = "omni:rtwt:app_state:roi" } },
+]
+
+# =============================================================================
+# Readouts — non-knob values surfaced to the UI. The colormap readouts declare the
+# (field -> colormap-prim) pairs the web_api serves.
+# =============================================================================
+[[readouts]]
+key          = "cmapVelocity"
+type         = "colormap"
+label        = "Velocity"
+field        = "VelocityMagnitude"
+domainSource = "VelocityColormap"
+
+[[readouts]]
+key          = "cmapPressure"
+type         = "colormap"
+label        = "Pressure"
+field        = "Pressure"
+domainSource = "PressureColormap"
+
+# =============================================================================
+# Views — named cameras. FullOrbit_Camera additionally toggles timeline playback on select;
+# other cameras force playback off (handled in core).
+# =============================================================================
+[[views]]
+name     = "FullOrbit_Camera"
+onSelect = { kind = "TogglePlayback", knob = "playAnimation" }
+
+# =============================================================================
+# [outputs.*] — the model output-field registry: the canonical, readable declaration of what
+# this workflow produces. Each output id is the NanoVDB tensor name on the inference wire.
+# It mirrors — and the controller's workflow validator cross-checks it against — two other
+# places it MUST agree with:
+#   1. the stage's `RtwtResultFieldSelectionAPI:<id>` instances (stages/Base.usda) — the runtime
+#      binding inference.py reads to decide which outputs to request and where to store them;
+#   2. the aeronim Triton producer (`_NANOVDB_OUTPUTS` in aeronim/rtwt/1/model.py) — across the
+#      wire in its own container, so the agreement is a documented contract, not a shared import.
+# `model_output` names the producer's source field; `data_format` keeps core from assuming every
+# analysis is a dense voxel grid; `visualizations` lists the viz modes this field drives.
+# =============================================================================
+[outputs.nvdb_velocity]
+model_output   = "velocity"
+target         = "/World/InferenceResults"
+field_name     = "Velocity"
+role           = "vector"
+label          = "Velocity"
+units          = "m/s"
+data_format    = "nvdb_grid"
+# A vector field drives the path-based modes; magnitude/pressure drive the scalar slice/volume.
+visualizations = ["Flow", "Streamlines"]
+
+[outputs.nvdb_velocity_magnitude]
+model_output   = "velocity_magnitude"
+target         = "/World/InferenceResults"
+field_name     = "VelocityMagnitude"
+role           = "scalar"
+label          = "Velocity Magnitude"
+units          = "m/s"
+data_format    = "nvdb_grid"
+visualizations = ["Slice", "Volume"]
+
+[outputs.nvdb_pressure]
+model_output   = "pressure"
+target         = "/World/InferenceResults"
+field_name     = "Pressure"
+role           = "scalar"
+label          = "Pressure"
+units          = "Pa"
+data_format    = "nvdb_grid"
+visualizations = ["Slice", "Volume"]
+
+# =============================================================================
+# [comparison] — the cached comparison view. Each result set is a pre-baked .npz in the inference
+# offline cache dir. The comparisonResultSet control's callback maps the selected result-set name to
+# the inference resultSetOverride, which loads that .npz; "off" returns to the live combo.
+# =============================================================================
+[comparison]
+default_result_set = "ground_truth"
+
+[comparison.result_sets.ground_truth]
+npz = "mock_ground_truth.npz"
+
+[comparison.result_sets.surrogate]
+npz = "9eae54bb9f680734.npz"
+
+[comparison.result_sets.diff]
+npz = "diff.npz"
