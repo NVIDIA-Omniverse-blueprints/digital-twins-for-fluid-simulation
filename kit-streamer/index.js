@@ -2,7 +2,7 @@
  * kit-streamer — thin wrapper around the NVIDIA Omniverse WebRTC streaming library.
  *
  * Exposes window.KitStreamer with three public methods:
- *   init(kitServer, { onConnected })  — connect to a Kit streaming server
+ *   init(kitServer, { onConnected, onDisconnected }) — connect to a Kit streaming server
  *   send(eventType, payload)          — send a request and await the response
  *   onSignal(eventType, handler)      — register a handler for Kit→client push events
  *
@@ -105,10 +105,19 @@ function resolveStreamConfig(kitServer, options = {}) {
  *
  * @param {string|null} kitServer - Hostname or IP of the Kit server.
  *   Defaults to window.location.hostname when null/undefined.
- * @param {{ onConnected?: () => void, signalingPort?: number|string, mediaServer?: string, forceWSS?: boolean|string }} [options]
+ * @param {{ onConnected?: () => void, onDisconnected?: () => void, signalingPort?: number|string, mediaServer?: string, forceWSS?: boolean|string }} [options]
  *   onConnected — called once the stream is up and the initial resize has been sent.
  */
-function init(kitServer, { onConnected, ...options } = {}) {
+function init(kitServer, { onConnected, onDisconnected, ...options } = {}) {
+    const disconnect = () => {
+        connected = false;
+        for (const { resolve, timer } of _pending.values()) {
+            clearTimeout(timer);
+            resolve(null);
+        }
+        _pending.clear();
+        onDisconnected?.();
+    };
     const stream = resolveStreamConfig(kitServer, options);
     // Kit treats the dimensions passed at connect time as the maximum render resolution,
     // so we use the full screen size here. Subsequent resize() calls can go smaller but
@@ -148,10 +157,13 @@ function init(kitServer, { onConnected, ...options } = {}) {
             onUpdate: (msg) => { console.debug('KitStreamer: update', msg); },
             // Custom events carry both request responses and one-way signals from Kit.
             onCustomEvent: (msg) => { console.debug('KitStreamer: custom event', msg); _onResponse(msg); _dispatchSignal(msg); },
-            onStop: () => { connected = false; },
-            onTerminate: () => { connected = false; },
+            onStop: disconnect,
+            onTerminate: disconnect,
         },
-    }).catch(console.error);
+    }).catch(error => {
+        console.error(error);
+        disconnect();
+    });
 
     // Keep the remote viewport in sync with the browser window.
     window.addEventListener('resize', debounce(() => {
@@ -172,7 +184,8 @@ const _pending = new Map();
 
 /**
  * Send a request to Kit and return a Promise that resolves with the response payload.
- * Resolves immediately with null when not connected.
+ * Resolves with null when disconnected or timed out. Retires the request in
+ * either case so polling through a long startup cannot accumulate resolvers.
  *
  * The message sent over the wire has the shape:
  *   { event_type: "<eventType>_request", payload: { ...payload, id } }
@@ -182,18 +195,30 @@ const _pending = new Map();
  *
  * @param {string} eventType
  * @param {object} [payload={}]
+ * @param {number} [timeoutMs=2000]
  * @returns {Promise<any>}
  */
-function send(eventType, payload = {}) {
+function send(eventType, payload = {}, timeoutMs = 2000) {
     if (!connected) return Promise.resolve(null);
     const id = _requestId++;
     const msg = JSON.stringify({
         event_type: `${eventType}_request`,
         payload: { ...payload, id },
     });
-    const promise = new Promise(resolve => _pending.set(id, resolve));
-    AppStreamer.sendMessage(msg);
-    return promise;
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            _pending.delete(id);
+            resolve(null);
+        }, timeoutMs);
+        _pending.set(id, { resolve, timer });
+        try {
+            AppStreamer.sendMessage(msg);
+        } catch (error) {
+            clearTimeout(timer);
+            _pending.delete(id);
+            reject(error);
+        }
+    });
 }
 
 /** @param {object} msg - Raw message from onCustomEvent. */
@@ -202,10 +227,13 @@ function _onResponse(msg) {
     // (msg.id); older builds nested it under payload.id. Accept both — `??` (not
     // `||`) so that id 0, the very first request, is preserved.
     const id = msg?.id ?? msg?.payload?.id;
-    const resolver = _pending.get(id);
-    if (resolver) {
+    const pending = _pending.get(id);
+    if (pending) {
         _pending.delete(id);
-        resolver(msg?.payload?.response ?? msg?.payload);
+        clearTimeout(pending.timer);
+        // null is a meaningful busy/rejected response, not a missing envelope.
+        const payload = msg?.payload;
+        pending.resolve(payload && Object.hasOwn(payload, 'response') ? payload.response : payload);
     }
 }
 

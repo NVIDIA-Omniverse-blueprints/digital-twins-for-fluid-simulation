@@ -73,6 +73,16 @@ readiness where applicable. It does **not** prove that a browser established the
 the scene rendered correctly, or that a control round-trip succeeded. Verify those separately when
 the task requires an end-to-end runtime claim.
 
+For a blank scene or missing controls during startup:
+
+1. Read `docker compose logs kit-lite` (or `kit` for standard). `app ready` can precede
+   `RTX ready` by several minutes while shaders compile; a reachable web page is not renderer readiness.
+2. Keep the browser open through initialization. Confirm the scene appears and the loading message
+   gives way to controls, including velocity options, without a reload.
+3. Change velocity and visualization mode; verify the rendered result changes, not just the selected
+   button. If it fails, capture Kit logs, browser console errors, a screenshot, and OS/GPU/driver details
+   before diagnosing. Compare a restart with retained caches to distinguish cold-start delay.
+
 ## Execution rules
 
 - Run repository commands with the documented `./repo.sh` entry points. Code importing `pxr`,

@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 2026.07 — 2026-09-19
+
+### Fixed
+
+* Fixed missing web controls after slow startup; show a loading message until controls are ready.
+* Retry control changes while Kit is busy so web selections stay synchronized with the simulation.
+* Suppress missing-credential warnings for Lite, which does not require NGC authentication.
+
+### Changed
+
+* Clarified agent checks for shader startup delays, missing controls, and unresponsive scene updates.
+
 ## Version 2026.07
 <!-- Entries below cover landed work; full release notes to follow. -->
 ### Added

@@ -59,8 +59,8 @@ services:
     environment: &kit-base-env
       # Optional Nucleus/Omniverse credentials — only needed if the scene
       # references omniverse:// URLs. Safe to leave unset for local stages.
-      OMNI_USER: "$OMNI_USER"
-      OMNI_PASS: "$OMNI_PASS"
+      OMNI_USER: "${OMNI_USER:-}"
+      OMNI_PASS: "${OMNI_PASS:-}"
       # Kit app bundle to launch. Override to swap front-ends (e.g. usd_viewer).
       KIT_APP: "${KIT_APP:-omni.rtwt.webrtc.kit}"
       # Triton endpoint used by omni.rtwt.inference. Defaults to the compose
@@ -70,8 +70,8 @@ services:
       # Raise the StreamSDK sender timeout when debugging — pausing in a
       # debugger otherwise trips the default ~2s watchdog and drops the stream.
       SenderTimeout: "${STREAMSDK_SENDER_TIMEOUT:-100000}"
-      NGC_API_KEY: "${NGC_API_KEY}"
-      NVIDIA_API_KEY: "${NVIDIA_API_KEY}"
+      NGC_API_KEY: "${NGC_API_KEY:-}"
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY:-}"
     deploy:
       resources:
         reservations:
@@ -186,7 +186,7 @@ services:
       # Should be a different GPU from CUDA_DEVICE_KIT when possible —
       # rendering and inference compete for VRAM if they share a device.
       CUDA_VISIBLE_DEVICES: "${CUDA_DEVICE_AERONIM:-1}"
-      NGC_API_KEY: "${NGC_API_KEY}"
+      NGC_API_KEY: "${NGC_API_KEY:-}"
       # BaseCAEVariants.usda used for variant-set composition, at the in-container path of the
       # stages mount below. Override only if you remount the stages directory elsewhere.
       RTWT_SUBLAYER_PATH: "${RTWT_SUBLAYER_PATH:-/opt/stages/BaseCAEVariants.usda}"

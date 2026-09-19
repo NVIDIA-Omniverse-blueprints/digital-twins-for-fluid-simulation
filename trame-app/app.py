@@ -94,6 +94,8 @@ state.cmap_pressure_min = 0.0
 state.cmap_pressure_max = 0.0
 state.notification_active = False
 state.notification_message = ""
+state.kit_ready = False
+state.kit_status = "Connecting to the simulation…"
 state.cache_state    = "idle"   # "idle" | "caching" | "cached"
 state.cache_progress = 0
 state.cache_total    = 0
@@ -289,6 +291,19 @@ with SinglePageLayout(server) as layout:
             )
             html.Audio(id="remote-audio", muted=True, style="display: none;")
 
+            # Keep controls hidden until Kit has supplied state and supported options.
+            # A cold renderer can spend several minutes compiling shaders.
+            with html.Div(
+                v_if="!kit_ready",
+                role="status",
+                aria_live="polite",
+                classes="text-center pa-6 rounded-lg",
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(30, 30, 30, 0.9);",
+            ):
+                vuetify.VProgressCircular(indeterminate=True, color="green", classes="mb-4")
+                html.Div("{{ kit_status }}", classes="text-h6 mb-2")
+                html.Div("The first launch can take several minutes while shaders compile.")
+
             # ── Notification banner (top center) ────────────────────────────
             vuetify.VSnackbar(
                 v_model=("notification_active",),
@@ -308,6 +323,7 @@ with SinglePageLayout(server) as layout:
             # LEFT PANEL: Camera Viewpoints
             # =========================================================
             with vuetify.VCard(
+                v_show="kit_ready",
                 style="position: absolute; top: 50%; transform: translateY(-50%); left: 20px; width: 120px; background-color: rgba(30, 30, 30, 0.85); backdrop-filter: blur(5px);"
             ):
                 vuetify.VCardTitle("VIEWS", classes="text-center font-weight-bold pt-4 text-subtitle-2")
@@ -339,7 +355,7 @@ with SinglePageLayout(server) as layout:
             # =========================================================
             # RIGHT PANEL: Settings
             # =========================================================
-            with html.Div(style="position: absolute; top: 20px; right: 20px; bottom: 20px; width: 380px; overflow-y: auto; padding-right: 4px;"):
+            with html.Div(v_show="kit_ready", style="position: absolute; top: 20px; right: 20px; bottom: 20px; width: 380px; overflow-y: auto; padding-right: 4px;"):
 
                 # ── Mode tabs: Explore / Compare ────────────────────────────
                 # Two-tab control at the top of the right panel; the active tab

@@ -13,15 +13,15 @@ document.head.appendChild(_favicon);
 // Load the AppStreamer IIFE bundle (sets window.KitStreamer)
 await new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = '/static/kit-streamer.iife.js';
+    // app.py versions this module URL; keep the transport bundle on that version too.
+    s.src = '/static/kit-streamer.iife.js' + new URL(import.meta.url).search;
     s.onload = resolve;
     s.onerror = reject;
     document.head.appendChild(s);
 });
 
 /**
- * Wraps KitStreamer.send() with a timeout so callers receive null instead of
- * hanging indefinitely when Kit hasn't responded within `ms` milliseconds.
+ * KitStreamer owns timeout cleanup, including retiring late response handlers.
  *
  * @param {string} eventType - Kit event name.
  * @param {object} payload   - Payload forwarded to Kit.
@@ -29,10 +29,7 @@ await new Promise((resolve, reject) => {
  * @returns {Promise<*>} Kit's response, or null on timeout.
  */
 function sendWithTimeout(eventType, payload = {}, ms = 2000) {
-    return Promise.race([
-        window.KitStreamer.send(eventType, payload),
-        new Promise(resolve => setTimeout(() => resolve(null), ms)),
-    ]);
+    return window.KitStreamer.send(eventType, payload, ms);
 }
 
 /**
@@ -78,7 +75,10 @@ function applyKitState(data, keys) {
 let _syncingFromKit = false;
 let _applyingLocalPatch = false;
 let _kitConnected = false;
-let _pendingBridgeSend = false;
+let _kitReady = false;
+let _bridgeSending = false;
+let _connectionGeneration = 0;
+let _initialSyncTimer = null;
 let _bridgeSendTimer = null;
 let _bridgePrev = {};
 
@@ -114,54 +114,38 @@ function bridgeStateChanged(keys, state) {
 
 function scheduleBridgeSend(delayMs = 500) {
     clearTimeout(_bridgeSendTimer);
-    _bridgeSendTimer = setTimeout(
-        () => sendBridgeStateToKit({ force: _pendingBridgeSend }),
-        delayMs,
-    );
+    _bridgeSendTimer = setTimeout(sendBridgeStateToKit, delayMs);
 }
 
-function sendBridgeStateToKit({ force = false } = {}) {
+async function sendBridgeStateToKit() {
+    // Never send frontend defaults before Kit has supplied its initial state.
+    // One request at a time also coalesces slider/button changes while Kit is busy.
+    if (!_kitConnected || !_kitReady || _bridgeSending) return;
     const { keys, state } = currentBridgeState();
-    if (!force && !bridgeStateChanged(keys, state)) {
-        return;
-    }
-
-    if (!_kitConnected || !window.KitStreamer?.send) {
-        _pendingBridgeSend = true;
-        scheduleBridgeSend();
-        return;
-    }
+    if (!bridgeStateChanged(keys, state)) return;
 
     const sentState = { ...state };
-    _pendingBridgeSend = false;
-
+    const generation = _connectionGeneration;
+    _bridgeSending = true;
+    let accepted = false;
     try {
-        let settled = false;
-        Promise.resolve(window.KitStreamer.send('set_state', { state: sentState }))
-            .then(() => {
-                settled = true;
-                _bridgePrev = sentState;
-            })
-            .catch((error) => {
-                settled = true;
-                console.warn('[app_streamer] set_state failed, will retry:', error);
-                _pendingBridgeSend = true;
-                scheduleBridgeSend();
-            });
-        setTimeout(() => {
-            if (settled) return;
-            console.warn('[app_streamer] set_state timed out, will retry');
-            _pendingBridgeSend = true;
-            scheduleBridgeSend();
-        }, 2500);
+        accepted = await sendWithTimeout('set_state', { state: sentState }) === true;
     } catch (error) {
-        console.warn('[app_streamer] set_state threw, will retry:', error);
-        _pendingBridgeSend = true;
-        scheduleBridgeSend();
+        console.warn('[app_streamer] set_state failed, will retry:', error);
+    }
+    if (generation !== _connectionGeneration) return;
+    _bridgeSending = false;
+    // A busy Kit handler returns null. A timeout can also mean Kit applied the
+    // write but its reply was lost, so the previous baseline is no longer safe.
+    _bridgePrev = accepted ? sentState : {};
+    const latest = currentBridgeState();
+    if (bridgeStateChanged(latest.keys, latest.state)) {
+        scheduleBridgeSend(accepted ? 0 : 500);
     }
 }
 
 function applyLocalStatePatch(patch) {
+    if (!_kitReady) return;
     _applyingLocalPatch = true;
     try {
         for (const [key, value] of Object.entries(patch)) {
@@ -171,7 +155,7 @@ function applyLocalStatePatch(patch) {
     } finally {
         _applyingLocalPatch = false;
     }
-    sendBridgeStateToKit();
+    scheduleBridgeSend(0);
 }
 
 function resetControlState() {
@@ -279,9 +263,13 @@ window.RTWTComparison = {
  */
 function registerKitSignals() {
     window.KitStreamer.onSignal('state_sync_signal', (data) => {
+        // A server update must not overwrite a newer local selection awaiting ack.
+        const state = window.trame.state.state;
+        const keys = getBridgeKeys().filter(key => !_bridgeSending && state[key] === _bridgePrev[key]);
         _syncingFromKit = true;
         try {
-            applyKitState(data, [...getBridgeKeys(), ...getReadKeys()]);
+            applyKitState(data, [...keys, ...getReadKeys()]);
+            for (const key of keys) _bridgePrev[key] = state[key];
         } finally {
             _syncingFromKit = false;
         }
@@ -323,20 +311,9 @@ function registerKitSignals() {
  * state (velocity_options / spoiler_options / mirrors_options / rims_options /
  * precaching_available).
  *
- * Called from pullStateFromKit once Kit's Python handlers are known to be
- * responding; retries with backoff so a single dropped/slow response doesn't
- * leave the lite UI unrestricted (these options gate the rims/mirrors grey-out).
+ * Applied together with the initial state before enabling controls.
  */
-async function pullAvailableOptionsFromKit(attempt = 0) {
-    const result = await sendWithTimeout('get_available_options', {}).catch(() => null);
-    if (!result) {
-        if (attempt < 20) {
-            setTimeout(() => pullAvailableOptionsFromKit(attempt + 1), 500);
-            return;
-        }
-        console.warn('[app_streamer] get_available_options returned no data after retries');
-        return;
-    }
+function applyAvailableOptions(result) {
     // Apply directly to trame state — the same path applyKitState/state_sync_signal use.
     // Crucially, call dirty() after set() for ARRAY values: trame/Vue does not reliably detect a
     // change to an array/object reference without it (applyKitState does the same for colormap
@@ -356,37 +333,56 @@ async function pullAvailableOptionsFromKit(attempt = 0) {
 
 /**
  * Fetches Kit's current state (Kit → trame) and applies it to the bridge keys.
- * Retries with 500 ms backoff until Kit's Python handlers respond with a
- * non-empty state dict, up to 20 attempts.
+ * Polls for the lifetime of the connection, with backoff capped at five seconds.
+ * Cold renderer startup can take several minutes; exhausting a short retry
+ * budget would leave the velocity slider and Lite restrictions unset forever.
  *
  * Called once per connection inside onConnected.
  */
-function pullStateFromKit() {
-    const trySync = async (attempt = 0) => {
-        const kitState = await sendWithTimeout('get_state', {}).catch(() => null);
-        if (!kitState || typeof kitState !== 'object' || Object.keys(kitState).length === 0) {
-            if (attempt < 20) setTimeout(() => trySync(attempt + 1), 500);
-            else console.warn('[app_streamer] get_state never returned data after 20 attempts');
-            return;
-        }
-        console.log('[app_streamer] synced initial state from Kit:', kitState);
-        _syncingFromKit = true;
-        try {
-            applyKitState(kitState, [...getBridgeKeys(), ...getReadKeys()]);
-        } finally {
-            _syncingFromKit = false;
-        }
-        if (!_pendingBridgeSend) {
-            _bridgePrev = currentBridgeState().state;
-        }
-        pullAvailableOptionsFromKit();
-        // Compare-only: no Explore tab exists to enter Compare from, so enter it once the initial
-        // state is synced — pins the fixed combo and shows the default result set.
-        if ((window.trame.state.state.ui_panels ?? 'both') === 'compare') {
-            window.RTWTComparison.enterView();
-        }
-    };
-    trySync();
+async function pullStateFromKit(generation, attempt = 0) {
+    const isCurrent = () => _kitConnected && generation === _connectionGeneration;
+    if (!isCurrent()) return;
+    const kitState = await sendWithTimeout('get_state', {}).catch(() => null);
+    if (!isCurrent()) return;
+    const hasState = kitState && getBridgeKeys().some(key => Object.hasOwn(kitState, key));
+    const options = hasState
+        ? await sendWithTimeout('get_available_options', {}).catch(() => null)
+        : null;
+    if (!isCurrent()) return;
+    if (!hasState || !Array.isArray(options?.options?.velocity) || !options.options.velocity.length) {
+        _initialSyncTimer = setTimeout(
+            () => pullStateFromKit(generation, attempt + 1),
+            Math.min(500 * 2 ** Math.min(attempt, 4), 5000),
+        );
+        return;
+    }
+    console.log('[app_streamer] synced initial state from Kit:', kitState);
+    _syncingFromKit = true;
+    try {
+        applyKitState(kitState, [...getBridgeKeys(), ...getReadKeys()]);
+        applyAvailableOptions(options);
+        _bridgePrev = currentBridgeState().state;
+        _kitReady = true;
+        window.trame.state.set('kit_ready', true);
+    } finally {
+        _syncingFromKit = false;
+    }
+    // Compare-only has no Explore tab to enter Compare from.
+    if ((window.trame.state.state.ui_panels ?? 'both') === 'compare') {
+        window.RTWTComparison.enterView();
+    }
+}
+
+function resetConnection(connected) {
+    _connectionGeneration++;
+    _kitConnected = connected;
+    _kitReady = false;
+    _bridgeSending = false;
+    _bridgePrev = {};
+    clearTimeout(_initialSyncTimer);
+    clearTimeout(_bridgeSendTimer);
+    window.trame.state.set('kit_ready', false);
+    window.trame.state.set('kit_status', connected ? 'Loading the simulation…' : 'Connecting to the simulation…');
 }
 
 /**
@@ -401,18 +397,16 @@ async function init() {
     console.log('[app_streamer] connecting to Kit at', kitServer ?? 'auto');
     window.KitStreamer.init(kitServer, {
         onConnected: () => {
-            _kitConnected = true;
+            resetConnection(true);
             registerKitSignals();
-            pullStateFromKit();
-            if (_pendingBridgeSend) {
-                sendBridgeStateToKit({ force: true });
-            }
+            pullStateFromKit(_connectionGeneration);
         },
+        onDisconnected: () => resetConnection(false),
     });
 
     window.trame.state.addListener(() => {
-        if (_syncingFromKit || _applyingLocalPatch) return;
-        sendBridgeStateToKit();
+        if (!_kitReady || _syncingFromKit || _applyingLocalPatch) return;
+        scheduleBridgeSend(0);
     });
 }
 

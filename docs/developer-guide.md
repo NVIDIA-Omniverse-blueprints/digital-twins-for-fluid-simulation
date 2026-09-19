@@ -333,10 +333,10 @@ The web front-end is a Python Trame server that renders a full-screen Vuetify3 U
 
 **`static/app_streamer.js`** — the JavaScript glue layer that:
 - Loads `kit-streamer.iife.js` to initialize `window.KitStreamer`
-- On connection, registers Kit signal handlers and pulls initial state from Kit (retries up to 20 times with 500 ms backoff)
+- On connection, registers Kit signal handlers and polls for initial state and supported options until both are available. Retry delays grow to at most five seconds, allowing cold shader compilation to finish without a page reload. Controls remain hidden behind a loading message until initialization completes.
 - After the first successful `get_state`, calls `get_available_options` and applies the returned
   `*_options` / `precaching_available` values directly to Trame state
-- Listens to trame state changes and forwards diffs of `kit_bridge_keys` to Kit via `set_state`
+- Listens to trame state changes and sends the latest `kit_bridge_keys` snapshot via `set_state`, with one request in flight. Only `true` acknowledges a write; busy, failed, or timed-out requests are retried with the latest selection. Disconnects retire pending requests and initialization restarts on reconnect.
 - Exposes `window.RTWTControls` for button-driven state changes, so discrete controls use the same client-side state bridge as sliders and switches
 - Uses a `_syncingFromKit` guard to prevent echo loops when Kit pushes state corrections back
 
